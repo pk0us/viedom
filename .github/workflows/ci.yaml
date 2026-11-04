@@ -1,0 +1,35 @@
+name: Foundation checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.14.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.3.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm setup:local
+      - run: pnpm config:check
+      - run: pnpm --filter @viedom/contracts build
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm format:check
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm smoke:local
+        env:
+          WEB_PORT: '4210'
+          API_PORT: '3010'
+          WEB_ORIGIN: http://localhost:4210
+          PUBLIC_API_BASE_URL: http://localhost:3010/api
+          SSR_API_BASE_URL: http://127.0.0.1:3010/api
+      - if: always()
+        run: pnpm infra:down

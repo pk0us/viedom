@@ -1,0 +1,21 @@
+packages:
+  - apps/*
+  - packages/*
+overrides:
+  '@emnapi/core': 1.7.1
+  '@emnapi/runtime': 1.7.1
+allowBuilds:
+  '@parcel/watcher': true
+  '@swc/core': true
+  esbuild: true
+  lmdb: true
+  msgpackr-extract: true
+minimumReleaseAgeExclude:
+  - '@angular/cdk@22.2.6'
+  - '@mikro-orm/core@7.2.7'
+  - '@mikro-orm/mongodb@7.2.7'
+  - '@nestjs/common@12.3.3'
+  - '@nestjs/core@12.3.3'
+  - '@nestjs/platform-express@12.3.3'
+  - '@nestjs/testing@12.3.3'
+  - ng-zorro-antd@22.2.0

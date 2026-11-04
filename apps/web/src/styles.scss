@@ -1,0 +1,15 @@
+@use './styles/variables' as tokens;
+
+html {
+  color-scheme: light;
+}
+body {
+  margin: 0;
+  color: tokens.$text;
+  background: #f5f7fa;
+}
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid tokens.$brand;
+  outline-offset: 3px;
+}

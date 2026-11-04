@@ -1,0 +1,14 @@
+pnpm-lock.yaml
+.agents/
+.git/
+node_modules/
+dist/
+.angular/
+.local/
+coverage/
+test-results/
+apps/web/src/generated/
+initial-project-plan.md
+phased-implementation-plan.md
+docs/handoffs/phase-01.md
+docs/phased-implementation-plan.md

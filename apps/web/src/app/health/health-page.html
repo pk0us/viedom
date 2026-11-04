@@ -1,0 +1,29 @@
+<main class="mx-auto max-w-2xl p-8">
+  <p class="eyebrow">Viedom · {{ city }}</p>
+  <h1>Local development foundation</h1>
+  <p>The marketplace is being built. This page checks the local services.</p>
+  <section aria-label="Service status" aria-live="polite">
+    <h2>API</h2>
+    @if (client.health.isLoading()) {
+      <p>Checking API…</p>
+    } @else if (client.health.hasValue()) {
+      <nz-alert nzType="success" nzMessage="API is running." />
+    } @else {
+      <nz-alert nzType="error" nzMessage="API is unavailable. Start the API, then retry." />
+    }
+    <h2>Readiness</h2>
+    @if (client.readiness.isLoading()) {
+      <p>Checking database connection…</p>
+    } @else if (client.readiness.hasValue() && client.readiness.value().status === 'ready') {
+      <nz-alert nzType="success" nzMessage="Database connection is ready." />
+    } @else {
+      <nz-alert
+        nzType="warning"
+        nzMessage="Services are not ready. Check local infrastructure, then retry."
+      />
+    }
+  </section>
+  <button class="retry" nz-button nzType="primary" type="button" (click)="client.retry()">
+    Check again
+  </button>
+</main>

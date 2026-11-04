@@ -1,0 +1,55 @@
+name: viedom-local
+services:
+  mongo-keyfile:
+    image: mongo:8.0.34@sha256:b9924c330a8bbc5800fe9c69f04a84e221eca7b28fd049a0354147d9908fa142
+    user: root
+    entrypoint: [bash, /bootstrap/keyfile.sh]
+    volumes:
+      - mongo_keyfile:/keyfile
+      - ./infra/mongo:/bootstrap:ro
+    restart: 'no'
+  mongo:
+    image: mongo:8.0.34@sha256:b9924c330a8bbc5800fe9c69f04a84e221eca7b28fd049a0354147d9908fa142
+    command: [mongod, --replSet, rs0, --bind_ip_all, --keyFile, /keyfile/replica.key]
+    depends_on:
+      mongo-keyfile:
+        condition: service_completed_successfully
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:?Run setup:local}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:?Run setup:local}
+      MONGO_APP_USERNAME: ${MONGO_APP_USERNAME:?Run setup:local}
+      MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD:?Run setup:local}
+      MONGO_TEST_USERNAME: ${MONGO_TEST_USERNAME:?Run setup:local}
+      MONGO_TEST_PASSWORD: ${MONGO_TEST_PASSWORD:?Run setup:local}
+      MONGO_DB_NAME: ${MONGO_DB_NAME:?Run setup:local}
+      MONGO_TEST_DB_NAME: ${MONGO_TEST_DB_NAME:?Run setup:local}
+    ports:
+      - '127.0.0.1:${MONGO_PORT:-27017}:27017'
+    volumes:
+      - mongo_data:/data/db
+      - mongo_keyfile:/keyfile:ro
+      - ./infra/mongo:/bootstrap:ro
+      - ./infra/mongo/init-users.js:/docker-entrypoint-initdb.d/10-users.js:ro
+    healthcheck:
+      test: [CMD, mongosh, --quiet, --nodb, /bootstrap/readiness.cjs]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+    restart: unless-stopped
+  mongo-bootstrap:
+    image: mongo:8.0.34@sha256:b9924c330a8bbc5800fe9c69f04a84e221eca7b28fd049a0354147d9908fa142
+    profiles: [setup]
+    entrypoint: [mongosh, --quiet, --nodb, /bootstrap/replica.cjs]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:?Run setup:local}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:?Run setup:local}
+    volumes:
+      - ./infra/mongo:/bootstrap:ro
+    depends_on:
+      mongo:
+        condition: service_started
+    restart: 'no'
+volumes:
+  mongo_data:
+  mongo_keyfile:

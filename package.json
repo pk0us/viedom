@@ -1,0 +1,42 @@
+{
+  "name": "viedom",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.14.0",
+  "engines": {
+    "node": ">=26.3.0 <27",
+    "pnpm": "12.14.0"
+  },
+  "scripts": {
+    "setup:local": "node scripts/setup-local.mjs",
+    "config:check": "node scripts/check-config.mjs",
+    "infra:up": "node scripts/infra.mjs up",
+    "infra:down": "node scripts/infra.mjs down",
+    "infra:logs": "node scripts/infra.mjs logs",
+    "dev": "node scripts/dev.mjs",
+    "build": "pnpm --filter @viedom/contracts build && pnpm --filter @viedom/api build && pnpm --filter @viedom/web build",
+    "lint": "eslint apps packages scripts",
+    "typecheck": "pnpm --filter @viedom/contracts typecheck && pnpm --filter @viedom/api typecheck && pnpm --filter @viedom/web typecheck",
+    "test": "node --test scripts/config.test.mjs && pnpm --filter @viedom/api test && pnpm --filter @viedom/web test",
+    "test:db": "pnpm --filter @viedom/api test:db",
+    "smoke:local": "node scripts/smoke-local.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check:leaks": "node scripts/check-leaks.mjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.64.1",
+    "@viedom/contracts": "workspace:*",
+    "@eslint/js": "10.0.1",
+    "@swc/core": "1.16.21",
+    "@types/node": "26.6.6",
+    "angular-eslint": "22.6.0",
+    "dotenv": "18.0.9",
+    "eslint": "10.14.0",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1",
+    "unplugin-swc": "2.0.0"
+  }
+}

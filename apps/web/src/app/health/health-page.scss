@@ -1,0 +1,29 @@
+@use '../../styles/variables' as tokens;
+
+:host {
+  display: block;
+}
+main {
+  margin-block: 4rem;
+}
+.eyebrow {
+  color: tokens.$brand;
+  font-weight: 600;
+}
+h1 {
+  font-size: 2rem;
+}
+h2 {
+  margin-top: 1.5rem;
+  font-size: 1.125rem;
+}
+button {
+  margin-top: 1.5rem;
+}
+.retry,
+.retry:hover,
+.retry:focus-visible {
+  color: #fff;
+  background: tokens.$brand;
+  border-color: tokens.$brand;
+}
