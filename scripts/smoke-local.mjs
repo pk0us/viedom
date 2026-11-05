@@ -8,8 +8,10 @@ import AxeBuilder from '@axe-core/playwright';
 import { loadConfig, root } from './config.mjs';
 import { run, cliPath, stopChild } from './process.mjs';
 import { generateWeb } from './generate-web.mjs';
+import { checkShell } from './smoke-shell.mjs';
 
 const config = loadConfig();
+const uiOnly = process.argv.includes('--ui-only');
 process.env.LEAK_SENTINEL ??= 'SYNTHETIC_PHASE02_SERVER_SECRET_MUST_STAY_PRIVATE';
 if (config.mode === 'production') throw new Error('Local smoke refuses production.');
 const children = [];
@@ -35,21 +37,23 @@ async function waitFor(url) {
 }
 
 try {
-  await nodeScript('scripts/infra.mjs', ['up']);
-  await nodeScript('apps/api/test/database-smoke.ts', ['write'], { env: probeEnvironment });
-  await nodeScript('scripts/infra.mjs', ['down']);
-  await nodeScript('scripts/infra.mjs', ['up']);
-  await nodeScript('apps/api/test/database-smoke.ts', ['verify'], { env: probeEnvironment });
+  if (!uiOnly) {
+    await nodeScript('scripts/infra.mjs', ['up']);
+    await nodeScript('apps/api/test/database-smoke.ts', ['write'], { env: probeEnvironment });
+    await nodeScript('scripts/infra.mjs', ['down']);
+    await nodeScript('scripts/infra.mjs', ['up']);
+    await nodeScript('apps/api/test/database-smoke.ts', ['verify'], { env: probeEnvironment });
 
-  // Build using this invocation's configuration, including any port overrides.
-  await run(process.execPath, [cliPath('typescript'), '-p', 'packages/contracts/tsconfig.json']);
-  await run(process.execPath, [cliPath('@nestjs/cli', apiDirectory), 'build'], {
-    cwd: apiDirectory
-  });
-  await generateWeb();
-  await run(process.execPath, [cliPath('@angular/cli', webDirectory), 'build'], {
-    cwd: webDirectory
-  });
+    // Build using this invocation's configuration, including any port overrides.
+    await run(process.execPath, [cliPath('typescript'), '-p', 'packages/contracts/tsconfig.json']);
+    await run(process.execPath, [cliPath('@nestjs/cli', apiDirectory), 'build'], {
+      cwd: apiDirectory
+    });
+    await generateWeb();
+    await run(process.execPath, [cliPath('@angular/cli', webDirectory), 'build'], {
+      cwd: webDirectory
+    });
+  }
   children.push(spawn(process.execPath, ['dist/main.js'], { cwd: apiDirectory, stdio: 'inherit' }));
   await waitFor(`${config.public.apiBaseUrl}/health/ready`);
   const cors = await fetch(`${config.public.apiBaseUrl}/health`, {
@@ -66,11 +70,14 @@ try {
   );
   await waitFor(config.webOrigin);
   const html = await (await fetch(config.webOrigin)).text();
+  assert.ok(html.includes('Your next chapter,'), 'SSR must render the public shell');
+  const healthHtml = await (await fetch(`${config.webOrigin}/health`)).text();
   assert.ok(
-    html.includes('Database connection is ready.'),
+    healthHtml.includes('Database connection is ready.'),
     'SSR must receive the typed API response'
   );
-  await writeFile(resolve(artifactDirectory, 'health.html'), html);
+  await writeFile(resolve(artifactDirectory, 'home.html'), html);
+  await writeFile(resolve(artifactDirectory, 'health.html'), healthHtml);
   browser = await chromium.launch({
     channel:
       process.env.SMOKE_BROWSER_CHANNEL || (process.platform === 'win32' ? 'chrome' : undefined),
@@ -86,22 +93,22 @@ try {
   const readyResponse = page.waitForResponse(
     (response) => response.url() === `${config.public.apiBaseUrl}/health/ready` && response.ok()
   );
-  await page.goto(config.webOrigin);
+  await page.goto(`${config.webOrigin}/health`);
   await Promise.all([liveResponse, readyResponse]);
   await expect(page.getByText('Database connection is ready.', { exact: true })).toBeVisible();
-  const styles = await page.locator('main').evaluate((element) => ({
+  const styles = await page.locator('.health-panel').evaluate((element) => ({
     padding: getComputedStyle(element).padding,
     maxWidth: getComputedStyle(element).maxWidth
   }));
   assert.equal(styles.padding, '32px');
   assert.equal(styles.maxWidth, '672px');
   // Retry against an actual network outage, then recover without a reload.
-  await page.route(`${config.public.apiBaseUrl}/health*`, (route) => route.abort());
+  await page.route(`${config.public.apiBaseUrl}/health**`, (route) => route.abort());
   await page.getByRole('button', { name: 'Check again' }).click();
   await expect(
     page.getByText('API is unavailable. Start the API, then retry.', { exact: true })
   ).toBeVisible();
-  await page.unroute(`${config.public.apiBaseUrl}/health*`);
+  await page.unroute(`${config.public.apiBaseUrl}/health**`);
   await page.getByRole('button', { name: 'Check again' }).click();
   await expect(page.getByText('Database connection is ready.', { exact: true })).toBeVisible();
   assert.deepEqual(errors, [], 'hydration and browser runtime must have no errors');
@@ -116,6 +123,8 @@ try {
     'health page must pass axe'
   );
   await page.screenshot({ path: resolve(artifactDirectory, 'health.png'), fullPage: true });
+  await checkShell(page, config.webOrigin, config.public.apiBaseUrl);
+  assert.deepEqual(errors, [], 'shell navigation must have no browser runtime errors');
   // Leak scan checks both the built assets and HTML under a synthetic secret.
   await nodeScript('scripts/check-leaks.mjs');
   const generated = await readFile(

@@ -1,0 +1,11 @@
+<div [id]="feedbackId()">
+  @if (showErrors() && errors().length) {
+    <ul class="field-errors" role="alert">
+      @for (error of errors(); track $index) {
+        <li>{{ error }}</li>
+      }
+    </ul>
+  } @else if (hint()) {
+    <p class="field-hint">{{ hint() }}</p>
+  }
+</div>

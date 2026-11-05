@@ -1,0 +1,13 @@
+@use '../../../styles/variables' as t;
+.field-hint,
+.field-errors {
+  margin: 0;
+  font-size: 0.875rem;
+}
+.field-hint {
+  color: t.$muted;
+}
+.field-errors {
+  color: t.$danger;
+  padding-left: 20px;
+}

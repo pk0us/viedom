@@ -1,0 +1,39 @@
+@use 'variables' as t;
+
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
+}
+h1,
+h2,
+h3 {
+  color: t.$text;
+  line-height: 1.2;
+  font-weight: 650;
+}
+h1 {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  letter-spacing: -0.045em;
+}
+h2 {
+  font-size: 1.5rem;
+  letter-spacing: -0.025em;
+}
+p {
+  max-width: 68ch;
+}
+.eyebrow {
+  color: t.$brand;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.muted {
+  color: t.$muted;
+}

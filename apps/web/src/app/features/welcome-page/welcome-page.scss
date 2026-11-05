@@ -1,0 +1,123 @@
+@use '../../../styles/variables' as t;
+.welcome {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 64px;
+  align-items: center;
+  padding-block: 8px 64px;
+}
+h1 {
+  margin-block: 20px 24px;
+}
+.intro {
+  color: t.$muted;
+  font-size: 1.05rem;
+  margin-bottom: 24px;
+}
+.availability {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: t.$muted;
+  font-size: 0.85rem;
+}
+.availability > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: t.$brand;
+}
+a {
+  margin-top: 16px;
+}
+a span[aria-hidden] {
+  margin-left: 20px;
+}
+.city-art {
+  overflow: hidden;
+  background: #e6eef8;
+  border-radius: 16px;
+  border: 1px solid #cbd9e9;
+}
+.art-topline,
+.art-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px;
+  color: #325479;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+}
+.art-caption {
+  border-top: 1px solid #cbd9e9;
+  flex-direction: column;
+  gap: 4px;
+}
+.art-caption span:first-child {
+  font-weight: 750;
+  letter-spacing: 0.18em;
+}
+svg {
+  display: block;
+  width: 100%;
+}
+.sun {
+  fill: #f8f3e7;
+}
+.water {
+  fill: #c9ddf0;
+}
+.buildings {
+  stroke: #6488b4;
+  stroke-width: 2;
+  fill: #f7f9fc;
+}
+.windows {
+  stroke: #91afcf;
+  stroke-width: 5;
+  fill: none;
+}
+.street {
+  stroke: #6488b4;
+  stroke-width: 2;
+}
+.availability-panel {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  align-items: center;
+  gap: 48px;
+}
+.local-note {
+  padding-left: 40px;
+  border-left: 1px solid t.$border;
+}
+.local-note p {
+  font-size: 1.4rem;
+  line-height: 1.35;
+  margin-block: 12px;
+}
+@media (max-width: t.$tablet) {
+  .welcome {
+    gap: 32px;
+  }
+}
+@media (max-width: t.$mobile) {
+  .welcome {
+    grid-template-columns: 1fr;
+    padding-bottom: 32px;
+  }
+  .city-art {
+    max-width: 460px;
+  }
+  .availability-panel {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .local-note {
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid t.$border;
+    padding-top: 24px;
+  }
+}

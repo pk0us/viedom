@@ -36,6 +36,15 @@ app.use(
   })
 );
 
+// These boundaries will hold private features later. Their previews are never cacheable/indexable.
+app.use((req, res, next) => {
+  if (/^\/(owner|admin)(\/|$)/.test(req.path)) {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  }
+  next();
+});
+
 /**
  * Handle all other requests by rendering the Angular application.
  */

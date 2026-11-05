@@ -1,0 +1,46 @@
+<section class="welcome" aria-labelledby="welcome-heading">
+  <div class="welcome-copy">
+    <p class="eyebrow">Local places. New beginnings.</p>
+    <h1 id="welcome-heading" tabindex="-1">Your next chapter,<br />in {{ city }}.</h1>
+    <p class="intro">
+      A home is more than an address. We're creating a simpler way to connect with individual
+      property owners and find a place that feels like yours.
+    </p>
+    <p class="availability"><span aria-hidden="true"></span>Marketplace in preparation</p>
+    <a nz-button nzType="primary" routerLink="/owner"
+      ><span>Explore the owner workspace</span><span aria-hidden="true">↗</span></a
+    >
+  </div>
+  <div class="city-art" aria-hidden="true">
+    <div class="art-topline"><span>40.6401° N</span><span>22.9444° E</span></div>
+    <svg viewBox="0 0 500 330" focusable="false">
+      <path class="sun" d="M340 100a48 48 0 1 0 0-1Z" />
+      <path class="water" d="M0 270Q110 240 240 278T500 260V330H0Z" />
+      <g class="buildings">
+        <path
+          d="M30 260V140h75v120M105 260V100h75v160M180 260V172h70v88M250 260V128h85v132M355 260V155h85v105"
+        />
+        <path d="M350 155l47-33 48 33M382 124V90h30v34" />
+      </g>
+      <path class="street" d="M15 266h450" />
+      <g class="windows">
+        <path
+          d="M50 162h34m-34 30h34m-34 30h34m42-100h32m-32 32h32m-32 32h32m-32 32h32m53-26h26m-26 30h26m45-72h43m-43 30h43m-43 30h43m60-33h39m-39 32h39"
+        />
+      </g>
+    </svg>
+    <div class="art-caption"><span>THESSALONIKI</span><span>Room for your next chapter.</span></div>
+  </div>
+</section>
+<section class="availability-panel panel" aria-label="Marketplace availability">
+  <app-ui-state
+    kind="empty"
+    heading="Good places take a little preparation."
+    description="Property search and listings are not available yet. There are no live properties to browse here today."
+  />
+  <div class="local-note">
+    <span class="eyebrow">Starting local</span>
+    <p>One city.<br />More possibilities.</p>
+    <span class="muted">{{ city }}, Greece</span>
+  </div>
+</section>

@@ -1,0 +1,112 @@
+@use '../../../styles/variables' as t;
+
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+.workspace-header {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  min-height: 88px;
+  padding: 16px 32px;
+  background: t.$surface;
+  border-bottom: 1px solid t.$border;
+}
+.wordmark {
+  font-size: 1.6rem;
+  font-weight: 750;
+  letter-spacing: -0.06em;
+  color: t.$text;
+  text-decoration: none;
+}
+.preview-tag {
+  margin-left: 8px;
+  border-radius: 4px;
+  background: t.$brand-soft;
+  color: t.$brand;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+.back-link {
+  margin-left: auto;
+}
+a {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+}
+.workspace-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-height: 0;
+}
+aside {
+  padding: 40px 24px;
+  background: t.$surface;
+  border-right: 1px solid t.$border;
+}
+nav a {
+  width: 100%;
+  justify-content: space-between;
+  padding: 12px;
+  border-radius: 6px;
+  text-decoration: none;
+}
+nav a.active {
+  background: t.$brand-soft;
+  color: t.$brand;
+  font-weight: 650;
+}
+.sidebar-note {
+  color: t.$muted;
+  font-size: 0.85rem;
+  margin-top: 32px;
+}
+main {
+  padding: clamp(24px, 4vw, 56px);
+  min-width: 0;
+  max-width: 1100px;
+}
+@media (max-width: t.$tablet) {
+  .workspace-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  aside {
+    padding: 12px 24px;
+    border-right: 0;
+    border-bottom: 1px solid t.$border;
+  }
+  aside .eyebrow,
+  .sidebar-note {
+    display: none;
+  }
+  nav a {
+    width: auto;
+    gap: 32px;
+  }
+}
+@media (max-width: t.$mobile) {
+  .workspace-header {
+    padding: 16px;
+    gap: 4px 20px;
+    flex-wrap: wrap;
+  }
+  .workspace-header > span {
+    font-size: 0.85rem;
+  }
+  .back-link {
+    margin-left: 0;
+    width: 100%;
+  }
+  aside {
+    padding-inline: 16px;
+  }
+  main {
+    padding: 32px 16px;
+  }
+}

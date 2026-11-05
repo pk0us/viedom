@@ -6,5 +6,6 @@ export const serverRoutes: ServerRoute[] = [
     path: '',
     renderMode: RenderMode.Server
   },
+  { path: 'health', renderMode: RenderMode.Server },
   { path: '**', renderMode: RenderMode.Client }
 ];

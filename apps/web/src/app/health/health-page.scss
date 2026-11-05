@@ -3,8 +3,14 @@
 :host {
   display: block;
 }
-main {
-  margin-block: 4rem;
+.health-panel {
+  width: 100%;
+  background: tokens.$surface;
+  border: 1px solid tokens.$border;
+  border-radius: tokens.$radius;
+  @media (max-width: 640px) {
+    padding: 24px;
+  }
 }
 .eyebrow {
   color: tokens.$brand;
@@ -12,6 +18,9 @@ main {
 }
 h1 {
   font-size: 2rem;
+}
+app-ui-state {
+  margin-top: 1.5rem;
 }
 h2 {
   margin-top: 1.5rem;

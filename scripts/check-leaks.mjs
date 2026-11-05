@@ -32,11 +32,13 @@ async function scan(directory) {
   }
 }
 await scan(resolve(root, 'apps/web/dist/web'));
-const healthHtml = resolve(root, 'test-results/phase02/health.html');
-if (existsSync(healthHtml)) {
-  const html = await readFile(healthHtml, 'utf8');
-  if (values.some((value) => html.includes(value)))
-    throw new Error('Sensitive value found in rendered health HTML.');
+for (const page of ['home', 'health']) {
+  const renderedHtml = resolve(root, `test-results/phase02/${page}.html`);
+  if (existsSync(renderedHtml)) {
+    const html = await readFile(renderedHtml, 'utf8');
+    if (values.some((value) => html.includes(value)))
+      throw new Error('Sensitive value found in rendered public HTML.');
+  }
 }
 console.log(
   'PASS: generated browser/server web artifacts contain none of the configured secrets or sentinel values.'

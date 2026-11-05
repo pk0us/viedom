@@ -1,29 +1,45 @@
-<main class="mx-auto max-w-2xl p-8">
+<div class="health-panel mx-auto max-w-2xl p-8">
   <p class="eyebrow">Viedom · {{ city }}</p>
-  <h1>Local development foundation</h1>
+  <h1 tabindex="-1">Service status</h1>
   <p>The marketplace is being built. This page checks the local services.</p>
   <section aria-label="Service status" aria-live="polite">
-    <h2>API</h2>
     @if (client.health.isLoading()) {
-      <p>Checking API…</p>
+      <app-ui-state kind="loading" heading="API" description="Checking API…" />
     } @else if (client.health.hasValue()) {
+      <h2>API</h2>
       <nz-alert nzType="success" nzMessage="API is running." />
     } @else {
-      <nz-alert nzType="error" nzMessage="API is unavailable. Start the API, then retry." />
+      <app-ui-state
+        kind="error"
+        heading="API"
+        description="API is unavailable. Start the API, then retry."
+      />
     }
-    <h2>Readiness</h2>
     @if (client.readiness.isLoading()) {
-      <p>Checking database connection…</p>
+      <app-ui-state
+        kind="loading"
+        heading="Readiness"
+        description="Checking database connection…"
+      />
     } @else if (client.readiness.hasValue() && client.readiness.value().status === 'ready') {
+      <h2>Readiness</h2>
       <nz-alert nzType="success" nzMessage="Database connection is ready." />
     } @else {
-      <nz-alert
-        nzType="warning"
-        nzMessage="Services are not ready. Check local infrastructure, then retry."
+      <app-ui-state
+        kind="error"
+        heading="Readiness"
+        description="Services are not ready. Check local infrastructure, then retry."
       />
     }
   </section>
-  <button class="retry" nz-button nzType="primary" type="button" (click)="client.retry()">
-    Check again
+  <button
+    class="retry"
+    nz-button
+    nzType="primary"
+    type="button"
+    [disabled]="client.health.isLoading() || client.readiness.isLoading()"
+    (click)="client.retry()"
+  >
+    <span>Check again</span>
   </button>
-</main>
+</div>

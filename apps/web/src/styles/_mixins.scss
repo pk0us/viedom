@@ -1,0 +1,9 @@
+@use 'variables' as t;
+
+@mixin container {
+  width: min(calc(100% - 48px), t.$content-width);
+  margin-inline: auto;
+  @media (max-width: t.$mobile) {
+    width: calc(100% - 32px);
+  }
+}

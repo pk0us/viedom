@@ -1,0 +1,25 @@
+@use 'variables' as t;
+
+// Public component classes only; retain supported NG-ZORRO default internals.
+.ant-btn {
+  min-height: 44px;
+  height: auto;
+  padding: 9px 18px;
+  border-radius: 6px;
+  font: inherit;
+}
+.ant-btn-primary,
+.ant-btn-primary:hover,
+.ant-btn-primary:focus-visible {
+  color: t.$surface;
+  background: t.$brand;
+  border-color: t.$brand;
+}
+.ant-btn:focus-visible {
+  outline: 3px solid t.$brand;
+  outline-offset: 3px;
+}
+.ant-alert {
+  border-radius: 6px;
+  font-size: 1rem;
+}

@@ -1,4 +1,10 @@
 @use './styles/variables' as tokens;
+@use './styles/typography';
+@use './styles/overrides';
+
+* {
+  box-sizing: border-box;
+}
 
 html {
   color-scheme: light;
@@ -6,10 +12,82 @@ html {
 body {
   margin: 0;
   color: tokens.$text;
-  background: #f5f7fa;
+  background: tokens.$canvas;
 }
-button:focus-visible,
-a:focus-visible {
+button,
+a {
+  touch-action: manipulation;
+}
+button,
+a,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button,
+a {
+  cursor: pointer;
+}
+a {
+  color: tokens.$brand;
+}
+a:hover {
+  color: tokens.$text;
+}
+:focus-visible {
   outline: 3px solid tokens.$brand;
   outline-offset: 3px;
+}
+.skip-link {
+  position: fixed;
+  inset: 8px auto auto 8px;
+  z-index: 50;
+  padding: 12px 20px;
+  background: tokens.$surface;
+  transform: translateY(-160%);
+  &:focus {
+    transform: translateY(0);
+  }
+}
+.panel {
+  padding: clamp(24px, 4vw, 40px);
+  background: tokens.$surface;
+  border: 1px solid tokens.$border;
+  border-radius: tokens.$radius;
+}
+.form-field {
+  display: grid;
+  gap: tokens.$space-2;
+  max-width: 36rem;
+  label {
+    font-weight: 600;
+  }
+  input,
+  select,
+  textarea {
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 12px;
+    color: tokens.$text;
+    background: tokens.$surface;
+    border: 1px solid tokens.$muted;
+    border-radius: 6px;
+    &[aria-invalid='true'] {
+      border-color: tokens.$danger;
+    }
+    &:disabled {
+      cursor: not-allowed;
+      background: tokens.$canvas;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition: none !important;
+  }
 }

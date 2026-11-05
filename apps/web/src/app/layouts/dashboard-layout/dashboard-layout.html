@@ -1,0 +1,21 @@
+<header class="workspace-header">
+  <a class="wordmark" routerLink="/">viedom</a
+  ><span>Owner workspace <span class="preview-tag">Preview</span></span
+  ><a class="back-link" routerLink="/">Back to home <span aria-hidden="true">↗</span></a>
+</header>
+<div class="workspace-body">
+  <aside>
+    <p class="eyebrow">Your workspace</p>
+    <nav aria-label="Owner navigation">
+      <a
+        routerLink="/owner"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+        ariaCurrentWhenActive="page"
+        >Overview <span aria-hidden="true">→</span></a
+      >
+    </nav>
+    <p class="sidebar-note">A space for individual property owners.</p>
+  </aside>
+  <main id="main-content" tabindex="-1"><router-outlet /></main>
+</div>

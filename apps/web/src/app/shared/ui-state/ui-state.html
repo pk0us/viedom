@@ -1,0 +1,18 @@
+<div class="ui-state" [attr.role]="kind() === 'loading' ? 'status' : null">
+  @if (kind() === 'loading') {
+    <nz-spin nzSimple aria-hidden="true" />
+  }
+  <h2>{{ heading() }}</h2>
+  @if (kind() === 'error') {
+    <nz-alert role="alert" nzType="error" [nzMessage]="description()" />
+  } @else if (kind() === 'empty') {
+    <nz-empty nzNotFoundImage="simple" [nzNotFoundContent]="description()" />
+  } @else {
+    <p>{{ description() }}</p>
+  }
+  @if (retryLabel() && kind() === 'error') {
+    <button nz-button type="button" (click)="retry.emit()">
+      <span>{{ retryLabel() }}</span>
+    </button>
+  }
+</div>

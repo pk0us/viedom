@@ -20,6 +20,7 @@
     "test": "node --test scripts/config.test.mjs && pnpm --filter @viedom/api test && pnpm --filter @viedom/web test",
     "test:db": "pnpm --filter @viedom/api test:db",
     "smoke:local": "node scripts/smoke-local.mjs",
+    "smoke:ui": "node scripts/smoke-local.mjs --ui-only",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:leaks": "node scripts/check-leaks.mjs"

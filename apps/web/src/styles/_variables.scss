@@ -1,3 +1,21 @@
-// Application tokens align with the centrally registered NG-ZORRO default theme.
+// NG-ZORRO's default component styles are registered centrally in angular.json.
+// These application tokens do not override the library's Less internals.
 $brand: #0050b3;
-$text: #1f2937;
+$brand-soft: #eaf2fc;
+$text: #172b42;
+$muted: #526477;
+$surface: #fff;
+$canvas: #f5f7fa;
+$border: #d5dfe9;
+$danger: #a51d2d;
+$radius: 12px;
+$space-1: 4px;
+$space-2: 8px;
+$space-3: 12px;
+$space-4: 16px;
+$space-6: 24px;
+$space-8: 32px;
+$space-12: 48px;
+$content-width: 1200px;
+$mobile: 640px;
+$tablet: 960px;
