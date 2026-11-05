@@ -1,10 +1,28 @@
-import { Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpException,
+  Post,
+  Req,
+  Res,
+  UseGuards
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
 import { AuthHttp, noStore } from './auth.http.js';
 import { AuthStore } from './auth.store.js';
 import type { GoogleIdentity } from './auth.store.js';
-import { LoginDto, RegisterDto, EmptyDto } from './auth.dto.js';
+import {
+  LoginDto,
+  RegisterDto,
+  EmptyDto,
+  EmailActionDto,
+  ConfirmEmailDto,
+  ResetPasswordDto
+} from './auth.dto.js';
+import { AuthActions, emailAcknowledgement } from './auth.actions.js';
 import { GoogleCallbackGuard, GoogleFlow } from './google.auth.js';
 import { JwtAuthGuard } from './auth.guards.js';
 import type { AuthRequest } from './auth.guards.js';
@@ -15,7 +33,8 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly http: AuthHttp,
     private readonly store: AuthStore,
-    private readonly google: GoogleFlow
+    private readonly google: GoogleFlow,
+    private readonly actions: AuthActions
   ) {}
   @Get('csrf')
   csrf(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
@@ -95,6 +114,46 @@ export class AuthController {
   ) {
     noStore(response);
     return this.google.start(request, response);
+  }
+  private async actionLimits(request: Request, scope: string, email?: string) {
+    await this.http.check(request, false);
+    await this.store.limit(`${scope}-ip`, request.ip ?? '', 20, 900);
+    // Silent per-email suppression preserves the generic response for targeted resends.
+    if (email) {
+      try {
+        await this.store.limit(`${scope}-email`, email, 3, 900);
+      } catch (error) {
+        if (error instanceof HttpException && error.getStatus() === 429) return false;
+        throw error;
+      }
+    }
+    return true;
+  }
+  @Post('verification/request')
+  @HttpCode(202)
+  async verificationRequest(@Body() body: EmailActionDto, @Req() request: Request) {
+    if (await this.actionLimits(request, 'verification-request', body.email))
+      await this.actions.request(body.email, 'verify-email');
+    return emailAcknowledgement;
+  }
+  @Post('forgot-password')
+  @HttpCode(202)
+  async forgotPassword(@Body() body: EmailActionDto, @Req() request: Request) {
+    if (await this.actionLimits(request, 'recovery-request', body.email))
+      await this.actions.request(body.email, 'reset-password');
+    return emailAcknowledgement;
+  }
+  @Post('verification/confirm')
+  @HttpCode(204)
+  async verificationConfirm(@Body() body: ConfirmEmailDto, @Req() request: Request) {
+    await this.actionLimits(request, 'verification-confirm');
+    await this.actions.confirm(body.token, 'verify-email');
+  }
+  @Post('reset-password')
+  @HttpCode(204)
+  async resetPassword(@Body() body: ResetPasswordDto, @Req() request: Request) {
+    await this.actionLimits(request, 'recovery-confirm');
+    await this.actions.confirm(body.token, 'reset-password', body.password);
   }
   @Get('google/callback')
   @UseGuards(GoogleCallbackGuard)

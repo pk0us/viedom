@@ -1,5 +1,21 @@
 name: viedom-local
 services:
+  mailpit:
+    image: axllent/mailpit:v1.27.4@sha256:df6c2541907e1be6fac21f509927cf6ed771617a1f4b361ef66d97bd05593d2d
+    ports:
+      - '127.0.0.1:${SMTP_PORT:-1025}:1025'
+      - '127.0.0.1:${MAIL_UI_PORT:-8025}:8025'
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: 1000
+    volumes:
+      - mail_data:/data
+    healthcheck:
+      test: [CMD, /mailpit, readyz]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
   mongo-keyfile:
     image: mongo:8.0.34@sha256:b9924c330a8bbc5800fe9c69f04a84e221eca7b28fd049a0354147d9908fa142
     user: root
@@ -51,5 +67,6 @@ services:
         condition: service_started
     restart: 'no'
 volumes:
+  mail_data:
   mongo_data:
   mongo_keyfile:

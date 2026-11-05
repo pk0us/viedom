@@ -16,6 +16,11 @@ const valid = {
   WEB_PORT: '4200',
   API_PORT: '3000',
   MONGO_PORT: '27017',
+  SMTP_HOST: '127.0.0.1',
+  SMTP_PORT: '1025',
+  SMTP_SECURE: 'false',
+  SMTP_FROM: 'no-reply@viedom.test',
+  MAIL_UI_PORT: '8025',
   WEB_ORIGIN: 'http://localhost:4200',
   PUBLIC_API_BASE_URL: 'http://localhost:3000/api',
   SSR_API_BASE_URL: 'http://127.0.0.1:3000/api',
@@ -66,7 +71,13 @@ for (const [key, value] of [
   ['COOKIE_SECURE', 'yes'],
   ['COOKIE_SAME_SITE', 'none'],
   ['REFRESH_COOKIE_NAME', 'bad;cookie'],
-  ['GOOGLE_CLIENT_ID', 'missing-secret.apps.googleusercontent.com']
+  ['GOOGLE_CLIENT_ID', 'missing-secret.apps.googleusercontent.com'],
+  ['SMTP_HOST', 'external.example'],
+  ['SMTP_SECURE', 'yes'],
+  ['SMTP_PORT', '4200'],
+  ['MAIL_UI_PORT', '0'],
+  ['SMTP_FROM', 'sender@example.test\r\nBcc: other@example.test'],
+  ['SMTP_USER', 'unpaired']
 ])
   test(`rejects invalid ${key} without echoing its value`, () => {
     assert.throws(
@@ -107,9 +118,16 @@ test('production enforces Secure cookies and same-origin browser API, with fixed
     SSR_API_BASE_URL: 'https://api.internal.example/api',
     MONGO_URI: 'mongodb://app:secret@db.example/dev?tls=true',
     MONGO_TEST_URI: 'mongodb://test:secret@db.example/test?tls=true',
-    COOKIE_SECURE: 'true'
+    COOKIE_SECURE: 'true',
+    SMTP_HOST: 'smtp.example.com',
+    SMTP_PORT: '587',
+    SMTP_USER: 'synthetic',
+    SMTP_PASSWORD: 'synthetic-password'
   };
   assert.equal(validateConfig(deployed).auth.secure, true);
+  assert.equal(validateConfig(deployed).mail.secure, false);
+  assert.throws(() => validateConfig({ ...deployed, SMTP_USER: '' }), /SMTP_USER/);
+  assert.throws(() => validateConfig({ ...deployed, SMTP_HOST: '127.0.0.1' }), /SMTP_HOST/);
   assert.equal(
     validateConfig(deployed).auth.googleCallbackUrl,
     'https://viedom.example/api/auth/google/callback'

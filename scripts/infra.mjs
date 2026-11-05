@@ -22,9 +22,9 @@ try {
   if (action === 'up') {
     await compose('up', '-d', 'mongo');
     await compose('run', '--rm', 'mongo-bootstrap');
-    await compose('up', '-d', '--wait', '--wait-timeout', '120', 'mongo');
+    await compose('up', '-d', '--wait', '--wait-timeout', '120', 'mongo', 'mailpit');
   } else if (action === 'down') await compose('down');
-  else if (action === 'logs') await compose('logs', '--tail', '100', '-f', 'mongo');
+  else if (action === 'logs') await compose('logs', '--tail', '100', '-f', 'mongo', 'mailpit');
   else throw new Error('Use up, down or logs.');
 } catch (error) {
   console.error(error.message);

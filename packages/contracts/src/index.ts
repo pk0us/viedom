@@ -54,3 +54,15 @@ export interface AuthResponse extends CsrfResponse {
 export interface GoogleStartResponse {
   authorizationUrl: string;
 }
+export interface EmailActionRequest {
+  email: string;
+}
+export interface ConfirmEmailRequest {
+  token: string;
+}
+export interface ResetPasswordRequest extends ConfirmEmailRequest {
+  password: string;
+}
+export interface EmailActionResponse {
+  message: string;
+}

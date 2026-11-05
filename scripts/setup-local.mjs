@@ -14,7 +14,14 @@ if (existsSync(envPath)) {
     COOKIE_SECURE: 'false',
     COOKIE_SAME_SITE: 'lax',
     GOOGLE_CLIENT_ID: '',
-    GOOGLE_CLIENT_SECRET: ''
+    GOOGLE_CLIENT_SECRET: '',
+    SMTP_HOST: '127.0.0.1',
+    SMTP_PORT: '1025',
+    SMTP_SECURE: 'false',
+    SMTP_FROM: 'no-reply@viedom.test',
+    SMTP_USER: '',
+    SMTP_PASSWORD: '',
+    MAIL_UI_PORT: '8025'
   };
   const missing = Object.entries(defaults).filter(([key]) => !(key in existing));
   if (missing.length) {
@@ -22,15 +29,15 @@ if (existsSync(envPath)) {
       throw new Error('Local setup refuses production configuration.');
     appendFileSync(
       envPath,
-      `\n# Phase 05 authentication defaults\n${missing.map(([key, value]) => `${key}=${value}`).join('\n')}\n`
+      `\n# Missing authentication/local mail defaults\n${missing.map(([key, value]) => `${key}=${value}`).join('\n')}\n`
     );
   }
-  console.log('Root .env values preserved; missing authentication defaults added if needed.');
+  console.log('Root .env values preserved; missing authentication/mail defaults added if needed.');
 } else {
   const template = readFileSync(resolve(root, '.env.example'), 'utf8');
   const values = parse(template);
   // Allow port overrides for a fresh setup; related URLs are derived together.
-  for (const key of ['WEB_PORT', 'API_PORT', 'MONGO_PORT'])
+  for (const key of ['WEB_PORT', 'API_PORT', 'MONGO_PORT', 'SMTP_PORT', 'MAIL_UI_PORT'])
     values[key] = process.env[key] ?? values[key];
   values.WEB_ORIGIN = `http://localhost:${values.WEB_PORT}`;
   values.PUBLIC_API_BASE_URL = `http://localhost:${values.API_PORT}/api`;

@@ -4,6 +4,8 @@ import { User } from '../database/entities.js';
 import { normalizeEmail } from '../database/domain.js';
 import type {
   IdentityRecord,
+  ActionRecord,
+  DeliveryRecord,
   OAuthRecord,
   RateRecord,
   RefreshRecord,
@@ -48,6 +50,12 @@ export class AuthStore {
   }
   get rates() {
     return this.db.collection<RateRecord>('auth_rate_limits');
+  }
+  get actions() {
+    return this.db.collection<ActionRecord>('auth_actions');
+  }
+  get deliveries() {
+    return this.db.collection<DeliveryRecord>('auth_deliveries');
   }
 
   async limit(scope: string, key: string, maximum: number, seconds: number): Promise<void> {

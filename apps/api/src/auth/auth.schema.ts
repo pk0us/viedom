@@ -30,6 +30,23 @@ export interface RateRecord {
   count: number;
   expiresAt: Date;
 }
+export type ActionPurpose = 'verify-email' | 'reset-password';
+export interface ActionRecord {
+  _id: string;
+  userId: ObjectId;
+  purpose: ActionPurpose;
+  accountHash: string;
+  expiresAt: Date;
+}
+export interface DeliveryRecord {
+  _id: string;
+  userId: ObjectId;
+  purpose: ActionPurpose;
+  availableAt: Date;
+  leaseUntil: Date;
+  attempts: number;
+  expiresAt: Date;
+}
 
 const id = { bsonType: 'objectId' };
 const hash = { bsonType: 'string', pattern: '^[a-f0-9]{64}$' };
@@ -44,6 +61,22 @@ const schema = (properties: Record<string, unknown>) => ({
 });
 // Additive collections: existing users/fixtures require no privileged validator migration.
 export const authValidators = {
+  auth_actions: schema({
+    _id: hash,
+    userId: id,
+    purpose: { enum: ['verify-email', 'reset-password'] },
+    accountHash: hash,
+    expiresAt: date
+  }),
+  auth_deliveries: schema({
+    _id: { bsonType: 'string', pattern: '^[a-f0-9]{24}:(verify-email|reset-password)$' },
+    userId: id,
+    purpose: { enum: ['verify-email', 'reset-password'] },
+    availableAt: date,
+    leaseUntil: date,
+    attempts: { bsonType: ['int', 'long', 'double'], minimum: 0, maximum: 5, multipleOf: 1 },
+    expiresAt: date
+  }),
   auth_sessions: schema({
     _id: id,
     userId: id,

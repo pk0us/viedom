@@ -23,6 +23,7 @@
     "db:seed": "pnpm --filter @viedom/api db:seed",
     "smoke:local": "node scripts/smoke-local.mjs",
     "smoke:ui": "node scripts/smoke-local.mjs --ui-only",
+    "smoke:mail": "node scripts/smoke-mail.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:leaks": "node scripts/check-leaks.mjs"

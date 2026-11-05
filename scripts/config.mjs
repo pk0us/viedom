@@ -29,9 +29,15 @@ export function validateConfig(env) {
       invalid(key, 'use an integer from 1 to 65535');
     return +value;
   };
-  const ports = { web: port('WEB_PORT'), api: port('API_PORT'), mongo: port('MONGO_PORT') };
-  if (new Set(Object.values(ports)).size !== 3)
-    invalid('WEB_PORT/API_PORT/MONGO_PORT', 'choose distinct ports');
+  const ports = {
+    web: port('WEB_PORT'),
+    api: port('API_PORT'),
+    mongo: port('MONGO_PORT'),
+    smtp: port('SMTP_PORT'),
+    mailUi: port('MAIL_UI_PORT')
+  };
+  if (new Set(Object.values(ports)).size !== 5)
+    invalid('WEB_PORT/API_PORT/MONGO_PORT/SMTP_PORT/MAIL_UI_PORT', 'choose distinct ports');
   const url = (key, originOnly = false) => {
     const value = required(key);
     let parsed;
@@ -197,12 +203,48 @@ export function validateConfig(env) {
       googleClientSecret.length < 10)
   )
     invalid('GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET', 'supply valid Google web-client credentials');
+  const smtpHost = required('SMTP_HOST');
+  if (!/^[a-zA-Z0-9.-]+$/.test(smtpHost))
+    invalid('SMTP_HOST', 'use a hostname without a URL or credentials');
+  if (!['true', 'false'].includes(required('SMTP_SECURE')))
+    invalid('SMTP_SECURE', 'use true for implicit TLS or false for STARTTLS/local capture');
+  const smtpUser = env.SMTP_USER || '';
+  const smtpPassword = env.SMTP_PASSWORD || '';
+  if (Boolean(smtpUser) !== Boolean(smtpPassword))
+    invalid('SMTP_USER/SMTP_PASSWORD', 'supply both or leave both empty locally');
+  const smtpFrom = required('SMTP_FROM');
+  if (
+    !/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(smtpFrom) ||
+    smtpFrom.length > 254
+  )
+    invalid('SMTP_FROM', 'use a single sender email address');
+  if (
+    mode !== 'production' &&
+    (smtpHost !== '127.0.0.1' || env.SMTP_SECURE !== 'false' || smtpUser)
+  )
+    invalid(
+      'SMTP_HOST/SMTP_SECURE/SMTP_USER',
+      'use unauthenticated loopback Mailpit for local development'
+    );
+  if (
+    mode === 'production' &&
+    (!smtpUser || ['localhost', '127.0.0.1', 'mailpit'].includes(smtpHost))
+  )
+    invalid('SMTP_HOST/SMTP_USER', 'use an authenticated deployed SMTP provider');
   return {
     mode,
     ports,
     webOrigin: webOrigin.origin,
     ssrApiBaseUrl: ssrApi.href,
     mongo: { uri, testUri, dbName, testDbName },
+    mail: {
+      host: smtpHost,
+      port: ports.smtp,
+      secure: env.SMTP_SECURE === 'true',
+      user: smtpUser,
+      password: smtpPassword,
+      from: smtpFrom
+    },
     auth: {
       accessSecret,
       accessTtl,

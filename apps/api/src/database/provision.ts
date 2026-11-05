@@ -174,13 +174,21 @@ export async function provision(orm: MikroORM): Promise<void> {
   await db.collection('auth_identities').createIndex({ userId: 1 }, { name: 'identity_user' });
   await db.collection('auth_sessions').createIndex({ userId: 1 }, { name: 'session_user' });
   await db
+    .collection('auth_actions')
+    .createIndex({ userId: 1, purpose: 1 }, { unique: true, name: 'action_user_purpose_unique' });
+  await db
+    .collection('auth_deliveries')
+    .createIndex({ availableAt: 1, leaseUntil: 1 }, { name: 'delivery_ready' });
+  await db
     .collection('auth_refresh_tokens')
     .createIndex({ sessionId: 1 }, { name: 'token_family' });
   for (const name of [
     'auth_sessions',
     'auth_refresh_tokens',
     'auth_oauth_states',
-    'auth_rate_limits'
+    'auth_rate_limits',
+    'auth_actions',
+    'auth_deliveries'
   ]) {
     await db
       .collection(name)

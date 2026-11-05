@@ -1,11 +1,19 @@
 import type { PublicConfig } from '@viedom/contracts';
 export interface AppConfig {
   mode: 'development' | 'test' | 'production';
-  ports: { web: number; api: number; mongo: number };
+  ports: { web: number; api: number; mongo: number; smtp: number; mailUi: number };
   webOrigin: string;
   ssrApiBaseUrl: string;
   mongo: { uri: string; testUri: string; dbName: string; testDbName: string };
   public: PublicConfig;
+  mail: {
+    host: string;
+    port: number;
+    secure: boolean;
+    user: string;
+    password: string;
+    from: string;
+  };
   auth: {
     accessSecret: string;
     accessTtl: number;
