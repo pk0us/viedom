@@ -7,6 +7,12 @@ import { validateConfig, readEnvironment } from './config.mjs';
 
 const valid = {
   NODE_ENV: 'development',
+  ACCESS_TOKEN_SECRET: 'A'.repeat(43),
+  ACCESS_TOKEN_TTL_SECONDS: '600',
+  REFRESH_TOKEN_TTL_SECONDS: '604800',
+  REFRESH_COOKIE_NAME: 'viedom_refresh',
+  COOKIE_SECURE: 'false',
+  COOKIE_SAME_SITE: 'lax',
   WEB_PORT: '4200',
   API_PORT: '3000',
   MONGO_PORT: '27017',
@@ -54,7 +60,13 @@ for (const [key, value] of [
   ['PUBLIC_API_BASE_URL', 'http://127.0.0.1:3000/api'],
   ['WEB_ORIGIN', 'http://localhost:4201'],
   ['PUBLIC_MAP_LATITUDE', 'NaN'],
-  ['PUBLIC_CURRENCY', 'USD']
+  ['PUBLIC_CURRENCY', 'USD'],
+  ['ACCESS_TOKEN_SECRET', 'SYNTHETIC_SECRET'],
+  ['ACCESS_TOKEN_TTL_SECONDS', '900.5'],
+  ['COOKIE_SECURE', 'yes'],
+  ['COOKIE_SAME_SITE', 'none'],
+  ['REFRESH_COOKIE_NAME', 'bad;cookie'],
+  ['GOOGLE_CLIENT_ID', 'missing-secret.apps.googleusercontent.com']
 ])
   test(`rejects invalid ${key} without echoing its value`, () => {
     assert.throws(
@@ -83,5 +95,36 @@ test('requires encoded Mongo credentials', () => {
   assert.throws(
     () => validateConfig({ ...valid, MONGO_URI: valid.MONGO_URI.replace('p%40ss', 'p@ss') }),
     /MONGO_URI/
+  );
+});
+
+test('production enforces Secure cookies and same-origin browser API, with fixed callback URL', () => {
+  const deployed = {
+    ...valid,
+    NODE_ENV: 'production',
+    WEB_ORIGIN: 'https://viedom.example',
+    PUBLIC_API_BASE_URL: 'https://viedom.example/api',
+    SSR_API_BASE_URL: 'https://api.internal.example/api',
+    MONGO_URI: 'mongodb://app:secret@db.example/dev?tls=true',
+    MONGO_TEST_URI: 'mongodb://test:secret@db.example/test?tls=true',
+    COOKIE_SECURE: 'true'
+  };
+  assert.equal(validateConfig(deployed).auth.secure, true);
+  assert.equal(
+    validateConfig(deployed).auth.googleCallbackUrl,
+    'https://viedom.example/api/auth/google/callback'
+  );
+  assert.throws(() => validateConfig({ ...deployed, COOKIE_SECURE: 'false' }), /COOKIE_SECURE/);
+  assert.throws(
+    () => validateConfig({ ...deployed, PUBLIC_API_BASE_URL: 'https://other.example/api' }),
+    /PUBLIC_API_BASE_URL/
+  );
+  assert.equal(
+    validateConfig({
+      ...valid,
+      GOOGLE_CLIENT_ID: 'synthetic.apps.googleusercontent.com',
+      GOOGLE_CLIENT_SECRET: 'synthetic-client-secret'
+    }).auth.googleClientId,
+    'synthetic.apps.googleusercontent.com'
   );
 });

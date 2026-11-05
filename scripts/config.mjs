@@ -168,12 +168,51 @@ export function validateConfig(env) {
     invalid('PUBLIC_LOCALE', 'use a supported locale');
   }
   if (required('PUBLIC_CURRENCY') !== 'EUR') invalid('PUBLIC_CURRENCY', 'use EUR for the MVP');
+  const accessSecret = required('ACCESS_TOKEN_SECRET');
+  if (!/^[A-Za-z0-9_-]{43,128}$/.test(accessSecret))
+    invalid('ACCESS_TOKEN_SECRET', 'use 32 or more randomly generated base64url bytes');
+  const accessTtl = number('ACCESS_TOKEN_TTL_SECONDS', 60, 900);
+  const refreshTtl = number('REFRESH_TOKEN_TTL_SECONDS', 3600, 2592000);
+  if (!Number.isInteger(accessTtl) || !Number.isInteger(refreshTtl))
+    invalid('ACCESS_TOKEN_TTL_SECONDS/REFRESH_TOKEN_TTL_SECONDS', 'use integer seconds');
+  const cookieName = required('REFRESH_COOKIE_NAME');
+  if (!/^[A-Za-z][A-Za-z0-9_]{0,49}$/.test(cookieName))
+    invalid('REFRESH_COOKIE_NAME', 'use a short alphanumeric name');
+  if (!['true', 'false'].includes(required('COOKIE_SECURE')))
+    invalid('COOKIE_SECURE', 'use true or false');
+  const secure = env.COOKIE_SECURE === 'true';
+  if (required('COOKIE_SAME_SITE') !== 'lax') invalid('COOKIE_SAME_SITE', 'use lax');
+  if (mode === 'production' && (!secure || browserApi.origin !== webOrigin.origin))
+    invalid(
+      'COOKIE_SECURE/PUBLIC_API_BASE_URL',
+      'production requires Secure cookies and same-origin /api routing'
+    );
+  const googleClientId = env.GOOGLE_CLIENT_ID || '';
+  const googleClientSecret = env.GOOGLE_CLIENT_SECRET || '';
+  if (Boolean(googleClientId) !== Boolean(googleClientSecret))
+    invalid('GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET', 'supply both or leave both empty');
+  if (
+    googleClientId &&
+    (!/^[A-Za-z0-9.-]+\.apps\.googleusercontent\.com$/.test(googleClientId) ||
+      googleClientSecret.length < 10)
+  )
+    invalid('GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET', 'supply valid Google web-client credentials');
   return {
     mode,
     ports,
     webOrigin: webOrigin.origin,
     ssrApiBaseUrl: ssrApi.href,
     mongo: { uri, testUri, dbName, testDbName },
+    auth: {
+      accessSecret,
+      accessTtl,
+      refreshTtl,
+      cookieName,
+      secure,
+      googleClientId,
+      googleClientSecret,
+      googleCallbackUrl: `${browserApi.href}/auth/google/callback`
+    },
     public: {
       apiBaseUrl: browserApi.href,
       locale,

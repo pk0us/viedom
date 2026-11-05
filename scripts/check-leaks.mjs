@@ -10,6 +10,8 @@ const values = [
   'MONGO_TEST_PASSWORD',
   'MONGO_URI',
   'MONGO_TEST_URI',
+  'ACCESS_TOKEN_SECRET',
+  'GOOGLE_CLIENT_SECRET',
   'LEAK_SENTINEL'
 ]
   .map((key) => env[key])

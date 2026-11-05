@@ -1,6 +1,7 @@
 import { MikroORM } from '@mikro-orm/mongodb';
 import { isDeepStrictEqual } from 'node:util';
 import { listingStates, propertyTypes } from './domain.js';
+import { authValidators } from '../auth/auth.schema.js';
 
 const string = (maxLength: number, minLength = 0) => ({ bsonType: 'string', minLength, maxLength });
 const numeric = (minimum: number, maximum: number, integer = false) => ({
@@ -130,7 +131,7 @@ export const validators = {
 /** Reviewed additive changes only: never drop collections, documents or unknown indexes. */
 export async function provision(orm: MikroORM): Promise<void> {
   const db = orm.em.getConnection().getDb();
-  for (const [name, validator] of Object.entries(validators)) {
+  for (const [name, validator] of Object.entries({ ...validators, ...authValidators })) {
     const existing = await db.listCollections({ name }, { nameOnly: false }).next();
     if (!existing) {
       await db.createCollection(name, {
@@ -167,4 +168,22 @@ export async function provision(orm: MikroORM): Promise<void> {
     { name: 'publisher_created' }
   );
   await listings.createIndex({ propertyId: 1 }, { name: 'property_lookup' });
+  await db
+    .collection('auth_identities')
+    .createIndex({ provider: 1, subject: 1 }, { unique: true, name: 'provider_subject_unique' });
+  await db.collection('auth_identities').createIndex({ userId: 1 }, { name: 'identity_user' });
+  await db.collection('auth_sessions').createIndex({ userId: 1 }, { name: 'session_user' });
+  await db
+    .collection('auth_refresh_tokens')
+    .createIndex({ sessionId: 1 }, { name: 'token_family' });
+  for (const name of [
+    'auth_sessions',
+    'auth_refresh_tokens',
+    'auth_oauth_states',
+    'auth_rate_limits'
+  ]) {
+    await db
+      .collection(name)
+      .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: 'expiry_cleanup' });
+  }
 }

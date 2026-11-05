@@ -6,6 +6,16 @@ export interface AppConfig {
   ssrApiBaseUrl: string;
   mongo: { uri: string; testUri: string; dbName: string; testDbName: string };
   public: PublicConfig;
+  auth: {
+    accessSecret: string;
+    accessTtl: number;
+    refreshTtl: number;
+    cookieName: string;
+    secure: boolean;
+    googleClientId: string;
+    googleClientSecret: string;
+    googleCallbackUrl: string;
+  };
 }
 export const root: string;
 export const envPath: string;

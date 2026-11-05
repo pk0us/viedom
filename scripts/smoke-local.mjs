@@ -43,7 +43,8 @@ try {
       process.execPath,
       [cliPath('vitest', apiDirectory), 'run', '--config', 'vitest.database.config.ts'],
       {
-        cwd: apiDirectory
+        cwd: apiDirectory,
+        env: { ...process.env, AUTH_BROWSER_SMOKE: '1' }
       }
     );
     await nodeScript('apps/api/test/database-smoke.ts', ['write'], { env: probeEnvironment });
