@@ -9,7 +9,9 @@
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:db": "node test/database-smoke.ts"
+    "test:db": "node test/database-smoke.ts && vitest run --config vitest.database.config.ts",
+    "db:indexes": "pnpm build && node dist/database/cli.js indexes",
+    "db:seed": "pnpm build && node dist/database/cli.js seed"
   },
   "dependencies": {
     "@viedom/contracts": "workspace:*",

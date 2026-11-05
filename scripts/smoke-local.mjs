@@ -39,6 +39,13 @@ async function waitFor(url) {
 try {
   if (!uiOnly) {
     await nodeScript('scripts/infra.mjs', ['up']);
+    await run(
+      process.execPath,
+      [cliPath('vitest', apiDirectory), 'run', '--config', 'vitest.database.config.ts'],
+      {
+        cwd: apiDirectory
+      }
+    );
     await nodeScript('apps/api/test/database-smoke.ts', ['write'], { env: probeEnvironment });
     await nodeScript('scripts/infra.mjs', ['down']);
     await nodeScript('scripts/infra.mjs', ['up']);

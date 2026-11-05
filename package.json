@@ -19,6 +19,8 @@
     "typecheck": "pnpm --filter @viedom/contracts typecheck && pnpm --filter @viedom/api typecheck && pnpm --filter @viedom/web typecheck",
     "test": "node --test scripts/config.test.mjs && pnpm --filter @viedom/api test && pnpm --filter @viedom/web test",
     "test:db": "pnpm --filter @viedom/api test:db",
+    "db:indexes": "pnpm --filter @viedom/api db:indexes",
+    "db:seed": "pnpm --filter @viedom/api db:seed",
     "smoke:local": "node scripts/smoke-local.mjs",
     "smoke:ui": "node scripts/smoke-local.mjs --ui-only",
     "format": "prettier --write .",
