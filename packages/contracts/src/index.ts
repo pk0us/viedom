@@ -66,3 +66,76 @@ export interface ResetPasswordRequest extends ConfirmEmailRequest {
 export interface EmailActionResponse {
   message: string;
 }
+
+export type PropertyType = 'apartment' | 'house' | 'studio';
+export type ListingStatus =
+  'draft' | 'pending_review' | 'rejected' | 'published' | 'paused' | 'archived';
+export interface GeoPoint {
+  type: 'Point';
+  coordinates: [number, number];
+}
+export interface PropertyContent {
+  type: PropertyType;
+  details: {
+    areaM2: number;
+    bedrooms: number;
+    bathrooms: number;
+    floor: number;
+    yearBuilt: number | null;
+    amenities: string[];
+  };
+  address: { countryCode: 'GR'; city: string; neighborhood: string; street: string };
+  privateLocation: GeoPoint;
+}
+export interface VersionRequest {
+  expectedVersion: number;
+}
+export interface UpdatePropertyRequest extends PropertyContent, VersionRequest {}
+export interface OwnerProperty extends PropertyContent {
+  id: string;
+  version: number;
+  publicLocation: GeoPoint;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface ListingContent {
+  transactionType: 'rent' | 'sale';
+  title: string;
+  description: string;
+  priceMinor: number;
+  currency: 'EUR';
+}
+export interface CreateListingRequest extends ListingContent {
+  propertyId: string;
+  expectedPropertyVersion: number;
+}
+export interface UpdateListingRequest extends ListingContent, VersionRequest {}
+export type SubmissionRequirement =
+  | 'verifiedEmail'
+  | 'title'
+  | 'description'
+  | 'bathrooms'
+  | 'processedMedia'
+  | 'moderationHold'
+  | 'state';
+export interface OwnerListingSummary extends ListingContent {
+  id: string;
+  propertyId: string;
+  version: number;
+  propertyVersion: number;
+  status: ListingStatus;
+  moderationHold: boolean;
+  submittedVersion: number | null;
+  publishedAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface OwnerListingDetail extends OwnerListingSummary {
+  property: OwnerProperty;
+  submission: { canSubmit: boolean; missing: SubmissionRequirement[] };
+}
+export interface OwnerListingsResponse {
+  items: OwnerListingSummary[];
+  nextCursor: string | null;
+}

@@ -25,6 +25,7 @@
     "smoke:ui": "node scripts/smoke-local.mjs --ui-only",
     "smoke:mail": "node scripts/smoke-mail.mjs",
     "smoke:auth": "node scripts/smoke-auth.mjs",
+    "smoke:listings": "pnpm --filter @viedom/api exec vitest run --config vitest.database.config.ts test/listings.spec.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:leaks": "node scripts/check-leaks.mjs"

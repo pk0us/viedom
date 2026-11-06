@@ -32,6 +32,7 @@ pnpm format:check
 pnpm smoke:local
 pnpm smoke:mail
 pnpm smoke:auth
+pnpm smoke:listings
 ```
 
 The local smoke check runs persistence and authentication integration tests, verifies credentialed browser cookies, builds the applications, verifies authenticated database access and restart persistence, then checks production SSR, browser/API recovery, responsive shells, keyboard navigation and axe. On Windows it uses installed Chrome by default. Screenshots and results are written under ignored `test-results/`.

@@ -4,6 +4,7 @@ import { MongoDriver } from '@mikro-orm/mongodb';
 import { Configuration } from '../configuration.js';
 import { ormOptions } from './orm-options.js';
 import { PropertySnapshots } from './snapshots.js';
+import { OwnerWrites } from './owner-writes.js';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { PropertySnapshots } from './snapshots.js';
       })
     })
   ],
-  providers: [PropertySnapshots],
-  exports: [PropertySnapshots]
+  providers: [PropertySnapshots, OwnerWrites],
+  exports: [PropertySnapshots, OwnerWrites]
 })
 export class DatabaseModule {}
