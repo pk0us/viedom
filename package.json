@@ -15,7 +15,7 @@
     "infra:logs": "node scripts/infra.mjs logs",
     "dev": "node scripts/dev.mjs",
     "build": "pnpm --filter @viedom/contracts build && pnpm --filter @viedom/api build && pnpm --filter @viedom/web build",
-    "lint": "eslint apps packages scripts",
+    "lint": "eslint apps packages scripts infra/garage",
     "typecheck": "pnpm --filter @viedom/contracts typecheck && pnpm --filter @viedom/api typecheck && pnpm --filter @viedom/web typecheck",
     "test": "node --test scripts/config.test.mjs && pnpm --filter @viedom/api test && pnpm --filter @viedom/web test",
     "test:db": "pnpm --filter @viedom/api test:db",
@@ -27,6 +27,7 @@
     "smoke:auth": "node scripts/smoke-auth.mjs",
     "smoke:listings": "pnpm --filter @viedom/api exec vitest run --config vitest.database.config.ts test/listings.spec.ts",
     "smoke:owner": "node scripts/smoke-owner.mjs",
+    "smoke:media": "node scripts/smoke-media.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:leaks": "node scripts/check-leaks.mjs"

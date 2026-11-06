@@ -48,9 +48,12 @@ try {
       }
     );
     await nodeScript('apps/api/test/database-smoke.ts', ['write'], { env: probeEnvironment });
+    await nodeScript('apps/api/test/media-persistence.ts', ['write'], { env: probeEnvironment });
     await nodeScript('scripts/infra.mjs', ['down']);
     await nodeScript('scripts/infra.mjs', ['up']);
     await nodeScript('apps/api/test/database-smoke.ts', ['verify'], { env: probeEnvironment });
+    await nodeScript('apps/api/test/media-persistence.ts', ['verify'], { env: probeEnvironment });
+    await nodeScript('scripts/smoke-media.mjs');
 
     // Build using this invocation's configuration, including any port overrides.
     await run(process.execPath, [cliPath('typescript'), '-p', 'packages/contracts/tsconfig.json']);

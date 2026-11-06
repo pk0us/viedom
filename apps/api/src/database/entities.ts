@@ -1,5 +1,6 @@
 import { EntitySchema } from '@mikro-orm/core';
 import { ObjectId } from '@mikro-orm/mongodb';
+import { MediaAssetSchema, MediaGallerySchema } from '../media/media.entities.js';
 import type {
   GeoPoint,
   ListingState,
@@ -135,4 +136,10 @@ export const ListingSchema = new EntitySchema<Listing>({
     neighborhood: { type: 'string' }
   }
 });
-export const entities = [UserSchema, PropertySchema, ListingSchema];
+export const entities = [
+  UserSchema,
+  PropertySchema,
+  ListingSchema,
+  MediaAssetSchema,
+  MediaGallerySchema
+];

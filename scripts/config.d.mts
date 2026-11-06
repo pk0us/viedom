@@ -1,10 +1,27 @@
 import type { PublicConfig } from '@viedom/contracts';
 export interface AppConfig {
   mode: 'development' | 'test' | 'production';
-  ports: { web: number; api: number; mongo: number; smtp: number; mailUi: number };
+  ports: {
+    web: number;
+    api: number;
+    mongo: number;
+    smtp: number;
+    mailUi: number;
+    s3: number;
+    garageAdmin: number;
+  };
   webOrigin: string;
   ssrApiBaseUrl: string;
   mongo: { uri: string; testUri: string; dbName: string; testDbName: string };
+  storage: {
+    endpoint: string;
+    region: string;
+    bucket: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    forcePathStyle: boolean;
+    deliveryBaseUrl: string;
+  };
   public: PublicConfig;
   mail: {
     host: string;

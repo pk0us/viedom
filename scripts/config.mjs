@@ -34,10 +34,15 @@ export function validateConfig(env) {
     api: port('API_PORT'),
     mongo: port('MONGO_PORT'),
     smtp: port('SMTP_PORT'),
-    mailUi: port('MAIL_UI_PORT')
+    mailUi: port('MAIL_UI_PORT'),
+    s3: port('S3_PORT'),
+    garageAdmin: port('GARAGE_ADMIN_PORT')
   };
-  if (new Set(Object.values(ports)).size !== 5)
-    invalid('WEB_PORT/API_PORT/MONGO_PORT/SMTP_PORT/MAIL_UI_PORT', 'choose distinct ports');
+  if (new Set(Object.values(ports)).size !== Object.keys(ports).length)
+    invalid(
+      'WEB_PORT/API_PORT/MONGO_PORT/SMTP_PORT/MAIL_UI_PORT/S3_PORT/GARAGE_ADMIN_PORT',
+      'choose distinct ports'
+    );
   const url = (key, originOnly = false) => {
     const value = required(key);
     let parsed;
@@ -256,12 +261,65 @@ export function validateConfig(env) {
     (!smtpUser || ['localhost', '127.0.0.1', 'mailpit'].includes(smtpHost))
   )
     invalid('SMTP_HOST/SMTP_USER', 'use an authenticated deployed SMTP provider');
+  const storageEndpoint = url('S3_ENDPOINT', true);
+  const deliveryBase = url('MEDIA_DELIVERY_BASE_URL');
+  if (deliveryBase.origin !== browserApi.origin || deliveryBase.pathname !== '/api/media')
+    invalid(
+      'MEDIA_DELIVERY_BASE_URL',
+      'use the browser API origin and /api/media authorization proxy'
+    );
+  if (
+    mode !== 'production' &&
+    (storageEndpoint.hostname !== '127.0.0.1' || Number(storageEndpoint.port || 80) !== ports.s3)
+  )
+    invalid('S3_ENDPOINT', 'use 127.0.0.1 with S3_PORT for host and browser uploads');
+  if (!['true', 'false'].includes(required('S3_FORCE_PATH_STYLE')))
+    invalid('S3_FORCE_PATH_STYLE', 'use true or false');
+  if (mode !== 'production' && env.S3_FORCE_PATH_STYLE !== 'true')
+    invalid('S3_FORCE_PATH_STYLE', 'use path style for local Garage');
+  const storageBucket = required('S3_BUCKET');
+  if (!/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(storageBucket))
+    invalid('S3_BUCKET', 'use a DNS-safe bucket name of 3–63 characters');
+  const storageRegion = required('S3_REGION');
+  if (!/^[a-z0-9-]{1,64}$/.test(storageRegion))
+    invalid('S3_REGION', 'use a short region identifier');
+  const accessKeyId = env.S3_ACCESS_KEY_ID || '';
+  const secretAccessKey = env.S3_SECRET_ACCESS_KEY || '';
+  if (Boolean(accessKeyId) !== Boolean(secretAccessKey) || (mode === 'production' && !accessKeyId))
+    invalid(
+      'S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY',
+      'supply both credentials; local infra initializes empty credentials'
+    );
+  if (
+    accessKeyId &&
+    (!/^[A-Za-z0-9]{16,128}$/.test(accessKeyId) ||
+      !/^[A-Za-z0-9/+_=-]{32,128}$/.test(secretAccessKey))
+  )
+    invalid(
+      'S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY',
+      'supply valid server-only storage credentials'
+    );
+  if (mode !== 'production') {
+    if (!/^[a-f0-9]{64}$/.test(required('GARAGE_RPC_SECRET')))
+      invalid('GARAGE_RPC_SECRET', 'use 32 random hex-encoded bytes');
+    if (!/^[A-Za-z0-9_-]{43,128}$/.test(required('GARAGE_ADMIN_TOKEN')))
+      invalid('GARAGE_ADMIN_TOKEN', 'use at least 32 random base64url bytes');
+  }
   return {
     mode,
     ports,
     webOrigin: webOrigin.origin,
     ssrApiBaseUrl: ssrApi.href,
     mongo: { uri, testUri, dbName, testDbName },
+    storage: {
+      endpoint: storageEndpoint.origin,
+      region: storageRegion,
+      bucket: storageBucket,
+      accessKeyId,
+      secretAccessKey,
+      forcePathStyle: env.S3_FORCE_PATH_STYLE === 'true',
+      deliveryBaseUrl: deliveryBase.href
+    },
     mail: {
       host: smtpHost,
       port: ports.smtp,

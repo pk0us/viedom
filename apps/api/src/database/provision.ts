@@ -2,6 +2,7 @@ import { MikroORM } from '@mikro-orm/mongodb';
 import { isDeepStrictEqual } from 'node:util';
 import { listingStates, propertyTypes } from './domain.js';
 import { authValidators } from '../auth/auth.schema.js';
+import { mediaValidators } from '../media/media.schema.js';
 
 const string = (maxLength: number, minLength = 0) => ({ bsonType: 'string', minLength, maxLength });
 const numeric = (minimum: number, maximum: number, integer = false) => ({
@@ -131,7 +132,11 @@ export const validators = {
 /** Reviewed additive changes only: never drop collections, documents or unknown indexes. */
 export async function provision(orm: MikroORM): Promise<void> {
   const db = orm.em.getConnection().getDb();
-  for (const [name, validator] of Object.entries({ ...validators, ...authValidators })) {
+  for (const [name, validator] of Object.entries({
+    ...validators,
+    ...authValidators,
+    ...mediaValidators
+  })) {
     const existing = await db.listCollections({ name }, { nameOnly: false }).next();
     if (!existing) {
       await db.createCollection(name, {
@@ -168,6 +173,18 @@ export async function provision(orm: MikroORM): Promise<void> {
     { name: 'publisher_created' }
   );
   await listings.createIndex({ propertyId: 1 }, { name: 'property_lookup' });
+  await db
+    .collection('media_galleries')
+    .createIndex({ listingId: 1 }, { name: 'media_listing_unique', unique: true });
+  await db
+    .collection('media_assets')
+    .createIndex({ listingId: 1, ownerId: 1 }, { name: 'media_owner_listing' });
+  await db
+    .collection('media_assets')
+    .createIndex({ state: 1, availableAt: 1, leaseUntil: 1 }, { name: 'media_processing_ready' });
+  await db
+    .collection('media_assets')
+    .createIndex({ cleanupAt: 1 }, { name: 'media_cleanup_ready' });
   await db
     .collection('auth_identities')
     .createIndex({ provider: 1, subject: 1 }, { unique: true, name: 'provider_subject_unique' });

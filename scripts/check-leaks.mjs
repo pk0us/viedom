@@ -13,6 +13,10 @@ const values = [
   'ACCESS_TOKEN_SECRET',
   'GOOGLE_CLIENT_SECRET',
   'SMTP_PASSWORD',
+  'S3_ACCESS_KEY_ID',
+  'S3_SECRET_ACCESS_KEY',
+  'GARAGE_RPC_SECRET',
+  'GARAGE_ADMIN_TOKEN',
   'LEAK_SENTINEL'
 ]
   .map((key) => env[key])

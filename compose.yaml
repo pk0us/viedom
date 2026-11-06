@@ -1,5 +1,23 @@
 name: viedom-local
 services:
+  garage:
+    image: dxflrs/garage:v2.5.0@sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?Run setup:local}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:?Run setup:local}
+    ports:
+      - '127.0.0.1:${S3_PORT:-3900}:3900'
+      - '127.0.0.1:${GARAGE_ADMIN_PORT:-3903}:3903'
+    volumes:
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+      - ./infra/garage/garage.toml:/etc/garage.toml:ro
+    healthcheck:
+      test: [CMD, /garage, status]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
   mailpit:
     image: axllent/mailpit:v1.27.4@sha256:df6c2541907e1be6fac21f509927cf6ed771617a1f4b361ef66d97bd05593d2d
     ports:
@@ -67,6 +85,8 @@ services:
         condition: service_started
     restart: 'no'
 volumes:
+  garage_meta:
+  garage_data:
   mail_data:
   mongo_data:
   mongo_keyfile:

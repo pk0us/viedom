@@ -5,7 +5,7 @@ import { defineConfig } from 'eslint/config';
 
 export default defineConfig([
   {
-    files: ['scripts/*.mjs'],
+    files: ['scripts/*.mjs', 'infra/garage/*.mjs'],
     extends: [js.configs.recommended],
     languageOptions: {
       globals: {

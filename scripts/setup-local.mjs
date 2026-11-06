@@ -21,7 +21,18 @@ if (existsSync(envPath)) {
     SMTP_FROM: 'no-reply@viedom.test',
     SMTP_USER: '',
     SMTP_PASSWORD: '',
-    MAIL_UI_PORT: '8025'
+    MAIL_UI_PORT: '8025',
+    S3_PORT: '3900',
+    GARAGE_ADMIN_PORT: '3903',
+    S3_ENDPOINT: `http://127.0.0.1:${existing.S3_PORT || '3900'}`,
+    S3_REGION: 'garage',
+    S3_BUCKET: 'viedom-media',
+    S3_ACCESS_KEY_ID: '',
+    S3_SECRET_ACCESS_KEY: '',
+    S3_FORCE_PATH_STYLE: 'true',
+    MEDIA_DELIVERY_BASE_URL: `${existing.PUBLIC_API_BASE_URL}/media`,
+    GARAGE_RPC_SECRET: randomBytes(32).toString('hex'),
+    GARAGE_ADMIN_TOKEN: randomBytes(32).toString('base64url')
   };
   const missing = Object.entries(defaults).filter(([key]) => !(key in existing));
   if (missing.length) {
@@ -29,19 +40,31 @@ if (existsSync(envPath)) {
       throw new Error('Local setup refuses production configuration.');
     appendFileSync(
       envPath,
-      `\n# Missing authentication/local mail defaults\n${missing.map(([key, value]) => `${key}=${value}`).join('\n')}\n`
+      `\n# Missing local service defaults\n${missing.map(([key, value]) => `${key}=${value}`).join('\n')}\n`
     );
   }
-  console.log('Root .env values preserved; missing authentication/mail defaults added if needed.');
+  console.log('Root .env values preserved; missing local service defaults added if needed.');
 } else {
   const template = readFileSync(resolve(root, '.env.example'), 'utf8');
   const values = parse(template);
   // Allow port overrides for a fresh setup; related URLs are derived together.
-  for (const key of ['WEB_PORT', 'API_PORT', 'MONGO_PORT', 'SMTP_PORT', 'MAIL_UI_PORT'])
+  for (const key of [
+    'WEB_PORT',
+    'API_PORT',
+    'MONGO_PORT',
+    'SMTP_PORT',
+    'MAIL_UI_PORT',
+    'S3_PORT',
+    'GARAGE_ADMIN_PORT'
+  ])
     values[key] = process.env[key] ?? values[key];
   values.WEB_ORIGIN = `http://localhost:${values.WEB_PORT}`;
   values.PUBLIC_API_BASE_URL = `http://localhost:${values.API_PORT}/api`;
   values.SSR_API_BASE_URL = `http://127.0.0.1:${values.API_PORT}/api`;
+  values.S3_ENDPOINT = `http://127.0.0.1:${values.S3_PORT}`;
+  values.MEDIA_DELIVERY_BASE_URL = `${values.PUBLIC_API_BASE_URL}/media`;
+  values.GARAGE_RPC_SECRET = randomBytes(32).toString('hex');
+  values.GARAGE_ADMIN_TOKEN = randomBytes(32).toString('base64url');
   for (const key of [
     'MONGO_INITDB_ROOT_PASSWORD',
     'MONGO_APP_PASSWORD',

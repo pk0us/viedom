@@ -108,9 +108,9 @@ export const openApiDocument = {
   openapi: '3.1.0',
   info: {
     title: 'Viedom owner property and listing API',
-    version: '0.8.0',
+    version: '0.10.0',
     description:
-      'Phase 08 contracts. Bearer authentication only; cookies do not authorize owner operations. PATCH replaces all editable content. Duplicate actions conflict; clients must reload after 409. Publication is reserved for later administrative endpoints. No public listing read is exposed in this phase.'
+      'Bearer authentication only; cookies do not authorize owner operations. PATCH replaces all editable content. Stale mutations conflict; clients must reload after 409. Original uploads are private. Processed images require owner authorization or current publication eligibility.'
   },
   servers: [{ url: '/api' }],
   paths: {
@@ -164,6 +164,85 @@ export const openApiDocument = {
       parameters: [parameter],
       get: operation('readOwnListing', 'OwnerListingDetail')
     },
+    '/listings/{id}/media': {
+      parameters: [parameter],
+      get: operation('readOwnMedia', 'OwnerMediaGallery'),
+      patch: operation(
+        'orderOwnMedia',
+        'OwnerMediaGallery',
+        'UpdateMediaGallery',
+        false,
+        'Reorders the exact existing gallery IDs and selects a processed cover. Withdraws reviewed content. Use the returned listing version for later writes.'
+      )
+    },
+    '/listings/{id}/media/upload-url': {
+      parameters: [parameter],
+      post: operation(
+        'authorizeMediaUpload',
+        'MediaUploadResponse',
+        'MediaUploadRequest',
+        true,
+        'Reserves one of at most 20 gallery slots. Upload JPEG, PNG or WebP bytes to the returned private PUT URL within five minutes using the returned headers. Maximum 10 MiB. Actual content is validated during processing.'
+      )
+    },
+    '/listings/{id}/media/complete': {
+      parameters: [parameter],
+      post: operation(
+        'completeMediaUpload',
+        'OwnerMediaGallery',
+        'MediaCompleteRequest',
+        false,
+        'Queues durable image processing. Duplicate completion for a queued, processing or ready owned asset returns current state. Processing changes advance the listing version; poll the gallery before another mutation.'
+      )
+    },
+    '/listings/{id}/media/{mediaId}': {
+      parameters: [parameter, { name: 'mediaId', in: 'path', required: true, schema: id }],
+      delete: operation(
+        'deleteOwnMedia',
+        'OwnerMediaGallery',
+        'VersionRequest',
+        false,
+        'Withdraws reviewed content immediately, removes the gallery reference and schedules durable object cleanup. Archived listings are terminal.'
+      )
+    },
+    '/listings/{id}/media/{mediaId}/{variant}': {
+      parameters: [
+        parameter,
+        { name: 'mediaId', in: 'path', required: true, schema: id },
+        { name: 'variant', in: 'path', required: true, schema: { enum: ['large', 'thumbnail'] } }
+      ],
+      get: {
+        operationId: 'readOwnProcessedImage',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Authorized sanitized image; no-store.',
+            content: { 'image/webp': { schema: { type: 'string', format: 'binary' } } }
+          },
+          '404': { description: 'Image missing, unprocessed or not owned.' }
+        }
+      }
+    },
+    '/media/{id}/{mediaId}/{variant}': {
+      parameters: [
+        parameter,
+        { name: 'mediaId', in: 'path', required: true, schema: id },
+        { name: 'variant', in: 'path', required: true, schema: { enum: ['large', 'thumbnail'] } }
+      ],
+      get: {
+        operationId: 'readPublishedImage',
+        security: [],
+        description:
+          'Rechecks current listing, owner and processed gallery eligibility on every request. No original or public bucket access.',
+        responses: {
+          '200': {
+            description: 'Eligible sanitized image; no-store.',
+            content: { 'image/webp': { schema: { type: 'string', format: 'binary' } } }
+          },
+          '404': { description: 'Image or current listing publication unavailable.' }
+        }
+      }
+    },
     ...Object.fromEntries(
       ['submit', 'pause', 'resume', 'archive'].map((action) => [
         `/listings/{id}/${action}`,
@@ -175,7 +254,7 @@ export const openApiDocument = {
             'VersionRequest',
             false,
             action === 'submit' || action === 'resume'
-              ? 'Verified active owner; valid draft/rejected (submit) or paused (resume). Requires title >=10, description >=30, >=1 bathroom and owned processed photos. Phase 08 has no processed-media implementation, so submission fails closed with 409. Transitions to pending_review only.'
+              ? 'Verified active owner; valid draft/rejected (submit) or paused (resume). Requires title >=10, description >=30, >=1 bathroom and a valid owned processed gallery and cover. Transitions to pending_review only.'
               : action === 'pause'
                 ? 'Published to paused; withdraws approval. Resuming requires review.'
                 : 'Any nonterminal state to archived. Terminal; moderation holds are preserved.'
@@ -229,6 +308,43 @@ export const openApiDocument = {
       OwnerListings: object({
         items: { type: 'array', maxItems: 50, items: ref('OwnerListingSummary') },
         nextCursor: nullable(string(256, 1))
+      }),
+      MediaVariant: object({
+        url: { type: 'string' },
+        width: integer(1, 1920),
+        height: integer(1, 1920),
+        bytes: integer(1, 10_485_760),
+        contentType: { const: 'image/webp' }
+      }),
+      OwnerMediaAsset: object({
+        id,
+        state: { enum: ['awaiting_upload', 'queued', 'processing', 'ready', 'failed', 'deleted'] },
+        errorCode: { enum: [null, 'invalid_image', 'processing_failed'] },
+        variants: nullable(object({ large: ref('MediaVariant'), thumbnail: ref('MediaVariant') }))
+      }),
+      OwnerMediaGallery: object({
+        listingId: id,
+        version,
+        coverMediaId: nullable(id),
+        items: { type: 'array', maxItems: 20, items: ref('OwnerMediaAsset') }
+      }),
+      MediaUploadRequest: object({
+        expectedVersion,
+        contentType: { enum: ['image/jpeg', 'image/png', 'image/webp'] },
+        bytes: integer(1, 10_485_760)
+      }),
+      MediaUploadResponse: object({
+        mediaId: id,
+        uploadUrl: { type: 'string', format: 'uri' },
+        expiresAt: date,
+        headers: object({ 'Content-Type': { enum: ['image/jpeg', 'image/png', 'image/webp'] } }),
+        gallery: ref('OwnerMediaGallery')
+      }),
+      MediaCompleteRequest: object({ expectedVersion, mediaId: id }),
+      UpdateMediaGallery: object({
+        expectedVersion,
+        mediaIds: { type: 'array', maxItems: 20, uniqueItems: true, items: id },
+        coverMediaId: nullable(id)
       }),
       ApiError: object({
         error: object({

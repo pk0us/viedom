@@ -144,3 +144,44 @@ export interface OwnerListingsResponse {
   items: OwnerListingSummary[];
   nextCursor: string | null;
 }
+
+export type MediaState =
+  'awaiting_upload' | 'queued' | 'processing' | 'ready' | 'failed' | 'deleted';
+export type UploadContentType = 'image/jpeg' | 'image/png' | 'image/webp';
+export interface MediaVariant {
+  url: string;
+  width: number;
+  height: number;
+  bytes: number;
+  contentType: 'image/webp';
+}
+export interface OwnerMediaAsset {
+  id: string;
+  state: MediaState;
+  errorCode: 'invalid_image' | 'processing_failed' | null;
+  variants: { large: MediaVariant; thumbnail: MediaVariant } | null;
+}
+export interface OwnerMediaGallery {
+  listingId: string;
+  version: number;
+  coverMediaId: string | null;
+  items: OwnerMediaAsset[];
+}
+export interface MediaUploadRequest extends VersionRequest {
+  contentType: UploadContentType;
+  bytes: number;
+}
+export interface MediaUploadResponse {
+  mediaId: string;
+  uploadUrl: string;
+  expiresAt: string;
+  headers: { 'Content-Type': UploadContentType };
+  gallery: OwnerMediaGallery;
+}
+export interface MediaCompleteRequest extends VersionRequest {
+  mediaId: string;
+}
+export interface UpdateMediaGalleryRequest extends VersionRequest {
+  mediaIds: string[];
+  coverMediaId: string | null;
+}

@@ -1,10 +1,56 @@
 import { Injectable } from '@nestjs/common';
+import { MikroORM, ObjectId } from '@mikro-orm/mongodb';
 import type { SubmissionRequirement } from '@viedom/contracts';
 import type { Listing, Property, User } from '../database/entities.js';
+import { MediaAsset, MediaGallery } from '../media/media.entities.js';
 
 @Injectable()
 export class ListingMediaPolicy {
-  ready: (listing: Listing) => Promise<boolean> = async () => false;
+  constructor(private readonly orm: MikroORM) {}
+
+  ready: (listing: Listing) => Promise<boolean> = async (listing) => {
+    const em = this.orm.em.fork();
+    const gallery = await em.findOne(MediaGallery, {
+      listingId: listing._id,
+      ownerId: listing.publisherId
+    });
+    if (
+      !gallery?.mediaIds.length ||
+      gallery.mediaIds.length > 20 ||
+      !gallery.coverMediaId ||
+      !gallery.mediaIds.includes(gallery.coverMediaId) ||
+      new Set(gallery.mediaIds).size !== gallery.mediaIds.length ||
+      gallery.mediaIds.some((id) => !/^[a-f0-9]{24}$/.test(id))
+    )
+      return false;
+    const assets = await em.find(MediaAsset, {
+      _id: { $in: gallery.mediaIds.map((id) => new ObjectId(id)) },
+      listingId: listing._id,
+      ownerId: listing.publisherId,
+      state: 'ready'
+    });
+    return (
+      assets.length === gallery.mediaIds.length &&
+      assets.every(
+        (asset) =>
+          asset.variants &&
+          [asset.variants.large, asset.variants.thumbnail].every(
+            (variant) =>
+              variant &&
+              asset.processingKeys.includes(variant.key) &&
+              Number.isSafeInteger(variant.bytes) &&
+              variant.bytes > 0 &&
+              variant.bytes <= 10_485_760 &&
+              Number.isInteger(variant.width) &&
+              variant.width > 0 &&
+              variant.width <= 1920 &&
+              Number.isInteger(variant.height) &&
+              variant.height > 0 &&
+              variant.height <= 1920
+          )
+      )
+    );
+  };
 }
 
 @Injectable()

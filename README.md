@@ -14,7 +14,7 @@ pnpm db:seed
 pnpm dev
 ```
 
-`setup:local` creates a root `.env` if missing, generates local secrets and appends missing authentication/mail defaults while preserving every existing value. Keep it private. The applications run on the host; authenticated MongoDB and Mailpit run in Docker with persistent volumes. Email/password authentication, verification and recovery work without a cloud account.
+`setup:local` creates a root `.env` if missing, generates local secrets and appends missing authentication/mail/storage defaults while preserving every existing value. Keep it private. The applications run on the host; authenticated MongoDB, Mailpit and private Garage object storage run in Docker with persistent volumes. Authentication and image processing work without a cloud account.
 
 Open [the public shell](http://localhost:4200), [create an account](http://localhost:4200/auth/register), [sign in](http://localhost:4200/auth/login) or check [service status](http://localhost:4200/health). The [owner workspace](http://localhost:4200/owner) requires a session and provides listing drafts, status filters, pagination, pause and archive. The API uses `http://localhost:3000/api`; its health endpoints are `/api/health` and `/api/health/ready`.
 
@@ -34,11 +34,12 @@ pnpm smoke:mail
 pnpm smoke:auth
 pnpm smoke:listings
 pnpm smoke:owner
+pnpm smoke:media
 ```
 
 The local smoke check runs persistence and authentication integration tests, verifies credentialed browser cookies, builds the applications, verifies authenticated database access and restart persistence, then checks production SSR, browser/API recovery, responsive shells, keyboard navigation and axe. On Windows it uses installed Chrome by default. Screenshots and results are written under ignored `test-results/`.
 
-`db:indexes` creates the core and authentication collections with reviewed validators and indexes. Repeat runs verify existing validators and add missing indexes; they never drop data or indexes. Validator drift or invalid existing records require a reviewed migration. `db:seed` also provisions, then inserts missing synthetic fixtures without overwriting existing records. Fixtures have no login passwords and do not appear in the shell. Both commands refuse production, remote targets and databases without a `local`, `dev` or `test` name segment. Use `pnpm db:indexes --test` / `pnpm db:seed --test` for the separate test database. See [persistence conventions](docs/persistence.md) for bounds, relationships, projection safety and transactional snapshot repair.
+`db:indexes` creates the core, authentication and media collections with reviewed validators and indexes. Repeat runs verify existing validators and add missing indexes; they never drop data or indexes. Validator drift or invalid existing records require a reviewed migration. `db:seed` also provisions, then inserts missing synthetic fixtures without overwriting existing records. Fixtures have no login passwords and do not appear in the shell. Both commands refuse production, remote targets and databases without a `local`, `dev` or `test` name segment. Use `pnpm db:indexes --test` / `pnpm db:seed --test` for the separate test database. See [persistence conventions](docs/persistence.md) for bounds, relationships, projection safety and transactional snapshot repair.
 
 After `pnpm build` and `pnpm infra:up`, use `pnpm smoke:ui` to repeat the browser checks against the existing build without rebuilding or restarting MongoDB. Both smoke commands start and stop their own application processes; stop other app instances on the configured ports first.
 
@@ -57,3 +58,5 @@ Create a listing from My listings, enter property information, a private locatio
 The browser loads MapLibre only inside the editor. `PUBLIC_MAP_STYLE_URL` selects a browser-safe HTTPS map style and defaults to OpenFreeMap Liberty; existing environment files need no change. Configure an appropriate licensed provider for deployment. The red pin is private, and the blue circle marks the saved server-derived approximate public location. Coordinate entry remains available when tiles or WebGL fail. The style provider receives ordinary map viewport requests, never listing text, credentials or the private street address. See [OpenFreeMap](https://openfreemap.org/) for provider details.
 
 `pnpm smoke:owner` builds the frontend and tests draft persistence, conflicts, owner isolation, pagination/actions, unsaved changes, map fallback and responsive accessibility with Chrome and the separate local test database. Like the auth smoke, it owns the application ports and removes only its synthetic records. `pnpm smoke:local` and `pnpm smoke:ui` include it.
+
+The media API supports private JPEG/PNG/WebP uploads, sanitized WebP derivatives, gallery order/cover selection and deletion. The editor's photo controls are upcoming work. Local Garage uses `http://127.0.0.1:3900` with persistent metadata/data volumes. `pnpm infra:up` initializes its private bucket and CORS, generates an application key and fills only empty storage credentials in `.env`; later startups preserve them. Public image delivery goes through the API's current publication checks. See [media limits, contracts and recovery](docs/media.md). `pnpm smoke:media` exercises real Garage/Mongo uploads, validation, authorization, retries and cleanup; the full local smoke also verifies object persistence across normal service restarts.

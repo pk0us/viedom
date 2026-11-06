@@ -21,6 +21,17 @@ const valid = {
   SMTP_SECURE: 'false',
   SMTP_FROM: 'no-reply@viedom.test',
   MAIL_UI_PORT: '8025',
+  S3_PORT: '3900',
+  GARAGE_ADMIN_PORT: '3903',
+  S3_ENDPOINT: 'http://127.0.0.1:3900',
+  S3_REGION: 'garage',
+  S3_BUCKET: 'viedom-media',
+  S3_ACCESS_KEY_ID: 'GK' + 'a'.repeat(24),
+  S3_SECRET_ACCESS_KEY: 'b'.repeat(64),
+  S3_FORCE_PATH_STYLE: 'true',
+  MEDIA_DELIVERY_BASE_URL: 'http://localhost:3000/api/media',
+  GARAGE_RPC_SECRET: 'c'.repeat(64),
+  GARAGE_ADMIN_TOKEN: 'd'.repeat(43),
   WEB_ORIGIN: 'http://localhost:4200',
   PUBLIC_API_BASE_URL: 'http://localhost:3000/api',
   SSR_API_BASE_URL: 'http://127.0.0.1:3000/api',
@@ -81,7 +92,17 @@ for (const [key, value] of [
   ['SMTP_PORT', '4200'],
   ['MAIL_UI_PORT', '0'],
   ['SMTP_FROM', 'sender@example.test\r\nBcc: other@example.test'],
-  ['SMTP_USER', 'unpaired']
+  ['SMTP_USER', 'unpaired'],
+  ['S3_PORT', '4200'],
+  ['GARAGE_ADMIN_PORT', '0'],
+  ['S3_ENDPOINT', 'http://external.example:3900'],
+  ['S3_ENDPOINT', 'http://127.0.0.1:3900/private'],
+  ['S3_BUCKET', '../private'],
+  ['S3_FORCE_PATH_STYLE', 'false'],
+  ['S3_SECRET_ACCESS_KEY', ''],
+  ['MEDIA_DELIVERY_BASE_URL', 'https://other.example/media'],
+  ['GARAGE_RPC_SECRET', 'short'],
+  ['GARAGE_ADMIN_TOKEN', 'SYNTHETIC_SECRET']
 ])
   test(`rejects invalid ${key} without echoing its value`, () => {
     assert.throws(
@@ -126,7 +147,9 @@ test('production enforces Secure cookies and same-origin browser API, with fixed
     SMTP_HOST: 'smtp.example.com',
     SMTP_PORT: '587',
     SMTP_USER: 'synthetic',
-    SMTP_PASSWORD: 'synthetic-password'
+    SMTP_PASSWORD: 'synthetic-password',
+    S3_ENDPOINT: 'https://storage.example',
+    MEDIA_DELIVERY_BASE_URL: 'https://viedom.example/api/media'
   };
   assert.equal(validateConfig(deployed).auth.secure, true);
   assert.equal(validateConfig(deployed).mail.secure, false);
@@ -149,4 +172,11 @@ test('production enforces Secure cookies and same-origin browser API, with fixed
     }).auth.googleClientId,
     'synthetic.apps.googleusercontent.com'
   );
+});
+
+test('local setup can defer storage credentials until Garage bootstrap, without exposing server config', () => {
+  const result = validateConfig({ ...valid, S3_ACCESS_KEY_ID: '', S3_SECRET_ACCESS_KEY: '' });
+  assert.equal(result.storage.accessKeyId, '');
+  assert.ok(!JSON.stringify(result.public).includes(valid.S3_SECRET_ACCESS_KEY));
+  assert.ok(!JSON.stringify(result.public).includes(valid.GARAGE_ADMIN_TOKEN));
 });
