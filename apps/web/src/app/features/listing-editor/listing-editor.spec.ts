@@ -55,6 +55,8 @@ describe('owner draft saves', () => {
         | 'updateProperty'
         | 'createListing'
         | 'updateListing'
+        | 'action'
+        | 'preview'
     ]: ReturnType<typeof vi.fn>;
   };
   let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
@@ -67,7 +69,9 @@ describe('owner draft saves', () => {
       getProperty: vi.fn().mockResolvedValue(property),
       updateProperty: vi.fn(),
       createListing: vi.fn().mockResolvedValue(detail),
-      updateListing: vi.fn().mockResolvedValue(detail)
+      updateListing: vi.fn().mockResolvedValue(detail),
+      action: vi.fn(),
+      preview: vi.fn()
     };
     params = new BehaviorSubject(convertToParamMap({}));
     user = signal<object | null>({ id: 'owner' });
@@ -188,6 +192,108 @@ describe('owner draft saves', () => {
     expect(page.canLeave()).toBe(false);
     user.set(null);
     expect(page.canLeave()).toBe(true);
+  });
+
+  it('adopts media versions without discarding unsaved input, but blocks concurrent content changes', async () => {
+    params.next(convertToParamMap({ id }));
+    const page = TestBed.createComponent(ListingEditor).componentInstance;
+    await page.load();
+    page.model.update((value) => ({ ...value, title: 'My unsaved title' }));
+    api.detail.mockResolvedValue({
+      ...detail,
+      version: 3,
+      submission: { canSubmit: true, missing: [] }
+    });
+    await page.galleryChanged({ listingId: id, version: 3, coverMediaId: null, items: [] });
+    expect(page.detail()?.version).toBe(3);
+    expect(page.model().title).toBe('My unsaved title');
+    expect(page.reloadRequired()).toBe(false);
+    api.detail.mockResolvedValue({ ...detail, version: 4, title: 'Another tab title' });
+    await page.galleryChanged({ listingId: id, version: 4, coverMediaId: null, items: [] });
+    expect(page.reloadRequired()).toBe(true);
+    expect(page.model().title).toBe('My unsaved title');
+  });
+
+  it('submits the current version once and never presents submission as publication', async () => {
+    params.next(convertToParamMap({ id }));
+    const ready = { ...detail, version: 7, submission: { canSubmit: true, missing: [] } };
+    api.detail.mockResolvedValue(ready);
+    const page = TestBed.createComponent(ListingEditor).componentInstance;
+    await page.load();
+    let finish!: (value: OwnerListingDetail) => void;
+    api.action.mockImplementation(
+      () =>
+        new Promise<OwnerListingDetail>((resolve) => {
+          finish = resolve;
+        })
+    );
+    const pending = page.requestReview();
+    await page.requestReview();
+    expect(api.action).toHaveBeenCalledTimes(1);
+    expect(api.action).toHaveBeenCalledWith(id, 'submit', 7);
+    finish({ ...ready, version: 8, status: 'pending_review', submittedVersion: 8 });
+    await pending;
+    expect(page.detail()?.status).toBe('pending_review');
+    expect(page.success()).toContain('not published');
+    await page.requestReview();
+    expect(api.action).toHaveBeenCalledTimes(1);
+  });
+
+  it('locks an uncertain review request until reload and does not replay it', async () => {
+    params.next(convertToParamMap({ id }));
+    api.detail.mockResolvedValue({ ...detail, submission: { canSubmit: true, missing: [] } });
+    const page = TestBed.createComponent(ListingEditor).componentInstance;
+    await page.load();
+    api.action.mockRejectedValue(new HttpErrorResponse({ status: 0 }));
+    await page.requestReview();
+    await page.requestReview();
+    expect(page.reloadRequired()).toBe(true);
+    expect(api.action).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses resume for paused listings and blocks unsaved and incomplete requests', async () => {
+    params.next(convertToParamMap({ id }));
+    api.detail.mockResolvedValue({
+      ...detail,
+      status: 'paused',
+      submission: { canSubmit: true, missing: [] }
+    });
+    const page = TestBed.createComponent(ListingEditor).componentInstance;
+    await page.load();
+    page.model.update((value) => ({ ...value, title: 'Unsaved title' }));
+    await page.requestReview();
+    expect(api.action).not.toHaveBeenCalled();
+    await page.load();
+    api.action.mockResolvedValue({ ...detail, status: 'pending_review' });
+    await page.requestReview();
+    expect(api.action).toHaveBeenCalledWith(id, 'resume', 1);
+    await page.load();
+    page.detail.set(detail);
+    await page.requestReview();
+    expect(api.action).toHaveBeenCalledTimes(1);
+  });
+
+  it('discards a preview from a previous session and rejects a stale preview version', async () => {
+    params.next(convertToParamMap({ id }));
+    const page = TestBed.createComponent(ListingEditor).componentInstance;
+    await page.load();
+    api.preview.mockResolvedValue({ version: 2 });
+    await page.showPreview();
+    expect(page.preview()).toBeNull();
+    expect(page.reloadRequired()).toBe(true);
+    await page.load();
+    let finish!: (value: unknown) => void;
+    api.preview.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    const pending = page.showPreview();
+    user.set(null);
+    finish({ version: 1 });
+    await pending;
+    expect(page.preview()).toBeNull();
   });
 });
 

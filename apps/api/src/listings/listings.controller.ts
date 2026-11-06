@@ -16,6 +16,7 @@ import type { AuthRequest } from '../auth/auth.guards.js';
 import { IdParams, VersionDto } from '../properties/properties.dto.js';
 import { CreateListingDto, OwnerListingsQuery, UpdateListingDto } from './listings.dto.js';
 import { ListingsService } from './listings.service.js';
+import { ListingsPreviewService } from './listings-preview.service.js';
 
 @Controller('listings')
 @UseGuards(JwtAuthGuard)
@@ -76,10 +77,17 @@ export class ListingsController {
 @Controller('me/listings')
 @UseGuards(JwtAuthGuard)
 export class OwnerListingsController {
-  constructor(private readonly listings: ListingsService) {}
+  constructor(
+    private readonly listings: ListingsService,
+    private readonly previews: ListingsPreviewService
+  ) {}
   @Get()
   list(@Req() request: AuthRequest, @Query() query: OwnerListingsQuery) {
     return this.listings.list(new ObjectId(request.user.id), query);
+  }
+  @Get(':id/preview')
+  preview(@Req() request: AuthRequest, @Param() params: IdParams) {
+    return this.previews.read(new ObjectId(request.user.id), new ObjectId(params.id));
   }
   @Get(':id')
   read(@Req() request: AuthRequest, @Param() params: IdParams) {

@@ -1,0 +1,138 @@
+<section aria-label="Listing photos">
+  <div class="photo-heading">
+    <div>
+      <h2>Photos</h2>
+      <p>
+        JPEG, PNG or WebP, up to 10 MiB each. Add up to 20 photos. Only processed photos can appear
+        in your listing.
+      </p>
+    </div>
+    <button nz-button type="button" [disabled]="busy() || loading()" (click)="refresh()">
+      <span>Refresh photos</span>
+    </button>
+  </div>
+  <div class="picker">
+    <label [for]="'photos-' + listingId()">Add photos</label>
+    <input
+      [id]="'photos-' + listingId()"
+      type="file"
+      accept="image/jpeg,image/png,image/webp"
+      multiple
+      [disabled]="locked() || (gallery()?.items?.length ?? 0) >= 20"
+      (change)="select($event)"
+    />
+    <p class="muted">Changes to photos save immediately and return reviewed listings to draft.</p>
+  </div>
+  @if (loading() && !gallery()) {
+    <p role="status">Loading photos…</p>
+  }
+  @if (error()) {
+    <p class="error-message" role="alert">{{ error() }}</p>
+  }
+  @if (notice()) {
+    <p role="status">{{ notice() }}</p>
+  }
+  @if (uploadProgress(); as progress) {
+    <div class="upload-progress" role="status">
+      <p>Uploading {{ progress.name }}: {{ progress.percent }}%</p>
+      <progress
+        max="100"
+        [value]="progress.percent"
+        [attr.aria-label]="'Uploading ' + progress.name"
+      ></progress>
+    </div>
+  }
+  @if (gallery(); as value) {
+    <p class="muted">{{ value.items.length }} / 20 photos</p>
+    <ol class="photo-grid" aria-label="Listing photo gallery" [attr.aria-busy]="busy()">
+      @for (
+        photo of value.items;
+        track photo.id;
+        let index = $index, first = $first, last = $last
+      ) {
+        <li class="photo-card" [attr.aria-label]="'Photo ' + (index + 1)">
+          @if (photo.state === 'ready' && photo.variants) {
+            <app-listing-photo
+              [listingId]="listingId()"
+              [mediaId]="photo.id"
+              [alt]="'Listing photo ' + (index + 1)"
+            />
+          } @else {
+            <div class="photo-placeholder">Photo {{ index + 1 }}</div>
+          }
+          <div class="photo-content">
+            <h3>Photo {{ index + 1 }}</h3>
+            <p>{{ stateLabel(photo) }}</p>
+            @if (value.coverMediaId === photo.id) {
+              <p class="cover-badge">Cover photo</p>
+            }
+            <div class="photo-actions">
+              <button
+                nz-button
+                type="button"
+                [disabled]="locked() || first"
+                [attr.aria-label]="'Move photo ' + (index + 1) + ' earlier'"
+                (click)="move(photo.id, -1)"
+              >
+                <span>Move earlier</span>
+              </button>
+              <button
+                nz-button
+                type="button"
+                [disabled]="locked() || last"
+                [attr.aria-label]="'Move photo ' + (index + 1) + ' later'"
+                (click)="move(photo.id, 1)"
+              >
+                <span>Move later</span>
+              </button>
+              @if (photo.state === 'ready' && photo.variants) {
+                <button
+                  nz-button
+                  type="button"
+                  [disabled]="locked() || value.coverMediaId === photo.id"
+                  [attr.aria-label]="'Use photo ' + (index + 1) + ' as cover'"
+                  (click)="cover(photo.id)"
+                >
+                  <span>Use as cover</span>
+                </button>
+              }
+              <button
+                nz-button
+                nzDanger
+                type="button"
+                [disabled]="locked()"
+                [attr.aria-label]="'Delete photo ' + (index + 1)"
+                (click)="remove(photo.id)"
+              >
+                <span>Delete</span>
+              </button>
+              @if (photo.state === 'failed' || photo.state === 'awaiting_upload') {
+                @if (hasFile(photo.id)) {
+                  <button
+                    nz-button
+                    type="button"
+                    [disabled]="locked()"
+                    [attr.aria-label]="'Retry photo ' + (index + 1)"
+                    (click)="retry(photo.id)"
+                  >
+                    <span>Retry upload</span>
+                  </button>
+                }
+                <label [for]="'replace-' + photo.id">Replace photo {{ index + 1 }}</label>
+                <input
+                  [id]="'replace-' + photo.id"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  [disabled]="locked()"
+                  (change)="select($event, photo.id)"
+                />
+              }
+            </div>
+          </div>
+        </li>
+      } @empty {
+        <li class="empty">No photos yet. Add a photo to begin.</li>
+      }
+    </ol>
+  }
+</section>

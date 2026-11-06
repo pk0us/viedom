@@ -4,6 +4,27 @@ import type { SubmissionRequirement } from '@viedom/contracts';
 import type { Listing, Property, User } from '../database/entities.js';
 import { MediaAsset, MediaGallery } from '../media/media.entities.js';
 
+export function processedMedia(asset: MediaAsset): boolean {
+  return Boolean(
+    asset.state === 'ready' &&
+    asset.variants &&
+    [asset.variants.large, asset.variants.thumbnail].every(
+      (variant) =>
+        variant &&
+        asset.processingKeys.includes(variant.key) &&
+        Number.isSafeInteger(variant.bytes) &&
+        variant.bytes > 0 &&
+        variant.bytes <= 10_485_760 &&
+        Number.isInteger(variant.width) &&
+        variant.width > 0 &&
+        variant.width <= 1920 &&
+        Number.isInteger(variant.height) &&
+        variant.height > 0 &&
+        variant.height <= 1920
+    )
+  );
+}
+
 @Injectable()
 export class ListingMediaPolicy {
   constructor(private readonly orm: MikroORM) {}
@@ -29,27 +50,7 @@ export class ListingMediaPolicy {
       ownerId: listing.publisherId,
       state: 'ready'
     });
-    return (
-      assets.length === gallery.mediaIds.length &&
-      assets.every(
-        (asset) =>
-          asset.variants &&
-          [asset.variants.large, asset.variants.thumbnail].every(
-            (variant) =>
-              variant &&
-              asset.processingKeys.includes(variant.key) &&
-              Number.isSafeInteger(variant.bytes) &&
-              variant.bytes > 0 &&
-              variant.bytes <= 10_485_760 &&
-              Number.isInteger(variant.width) &&
-              variant.width > 0 &&
-              variant.width <= 1920 &&
-              Number.isInteger(variant.height) &&
-              variant.height > 0 &&
-              variant.height <= 1920
-          )
-      )
-    );
+    return assets.length === gallery.mediaIds.length && assets.every(processedMedia);
   };
 }
 

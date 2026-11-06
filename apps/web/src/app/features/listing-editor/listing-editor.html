@@ -29,10 +29,6 @@
       advertisements to draft.
     </p>
   }
-  <p class="notice">
-    Photos are not available yet. A draft without processed photos is not ready to submit for review
-    or publish.
-  </p>
   @if (reloadRequired()) {
     <div class="conflict">
       <p role="alert">{{ error() }}</p>
@@ -43,7 +39,7 @@
           before starting another draft.
         </p>
       } @else {
-        <button nz-button type="button" [disabled]="busy()" (click)="reload()">
+        <button nz-button type="button" [disabled]="blocked()" (click)="reload()">
           <span>{{ detail() ? 'Reload saved listing' : 'Check saved data' }}</span>
         </button>
         <p>
@@ -60,7 +56,7 @@
     <p>
       Fields are required unless marked optional. Title and description can be left blank in drafts.
     </p>
-    <fieldset [disabled]="busy() || archived() || reloadRequired()">
+    <fieldset [disabled]="blocked() || archived() || reloadRequired()">
       <legend>Property information</legend>
       <div class="form-grid">
         <div class="form-field">
@@ -200,7 +196,7 @@
         </div>
       </div>
     </fieldset>
-    <fieldset [disabled]="busy() || archived() || reloadRequired()">
+    <fieldset [disabled]="blocked() || archived() || reloadRequired()">
       <legend>Address and location</legend>
       <p class="muted">
         Your exact pin and street address stay private. Visitors see an intentionally approximate
@@ -297,11 +293,11 @@
         [longitude]="+model().longitude"
         [latitude]="+model().latitude"
         [publicLocation]="detail()?.property?.publicLocation ?? null"
-        [disabled]="busy() || archived() || reloadRequired()"
+        [disabled]="blocked() || archived() || reloadRequired()"
         (locationChange)="locationChanged($event)"
       />
     </fieldset>
-    <fieldset [disabled]="busy() || archived() || reloadRequired()">
+    <fieldset [disabled]="blocked() || archived() || reloadRequired()">
       <legend>Listing information</legend>
       <div class="form-grid">
         <div class="form-field">
@@ -374,7 +370,7 @@
         nz-button
         nzType="primary"
         type="submit"
-        [disabled]="busy() || archived() || reloadRequired()"
+        [disabled]="blocked() || archived() || reloadRequired()"
         [nzLoading]="busy()"
       >
         <span>Save draft</span>
@@ -387,4 +383,163 @@
       }
     </div>
   </form>
+  @if (detail(); as listing) {
+    <app-listing-photos
+      [listingId]="listing.id"
+      [disabled]="busy() || previewBusy() || archived() || reloadRequired()"
+      (galleryChange)="galleryChanged($event)"
+      (busyChange)="mediaBusy.set($event)"
+      (conflict)="mediaConflict()"
+    />
+    <section class="review-panel" aria-label="Preview and review">
+      <h2>Preview and review</h2>
+      @if (listing.status === 'pending_review') {
+        <p class="notice" role="status">
+          Your listing is awaiting review and is not published. Editing content or photos withdraws
+          this request.
+        </p>
+      } @else if (listing.status === 'rejected') {
+        <p class="notice">
+          This listing was rejected. Check and update your saved content and photos, then request
+          another review.
+        </p>
+      } @else if (listing.status === 'paused') {
+        <p class="notice">
+          This listing is paused. Resuming requests a new review before it can be published again.
+        </p>
+      }
+      @if (dirty()) {
+        <p role="status">Save your changes before previewing or requesting review.</p>
+      }
+      @if (mediaRefreshing()) {
+        <p role="status">Refreshing saved photo and review status…</p>
+      }
+      @if (reviewable()) {
+        @if (listing.submission.missing.length) {
+          <p>Before requesting review:</p>
+          <ul>
+            @for (requirement of listing.submission.missing; track requirement) {
+              <li>{{ requirements[requirement] }}</li>
+            }
+          </ul>
+          @if (listing.submission.missing.includes('verifiedEmail')) {
+            <a routerLink="/auth/verification">Verify your email</a>
+          }
+        } @else {
+          <p>
+            All saved requirements are complete. The server checks them again when you request
+            review.
+          </p>
+        }
+      }
+      <div class="save-actions">
+        <button
+          nz-button
+          id="preview-listing-button"
+          type="button"
+          [disabled]="blocked() || dirty() || reloadRequired()"
+          [nzLoading]="previewBusy()"
+          (click)="showPreview()"
+        >
+          <span>Preview saved listing</span>
+        </button>
+        @if (reviewable()) {
+          <button
+            nz-button
+            nzType="primary"
+            type="button"
+            [disabled]="blocked() || dirty() || reloadRequired() || !listing.submission.canSubmit"
+            [nzLoading]="busy()"
+            (click)="requestReview()"
+          >
+            <span>{{
+              listing.status === 'paused' ? 'Request review to resume' : 'Submit for review'
+            }}</span>
+          </button>
+        }
+      </div>
+      <p class="muted">
+        Only an administrator can approve publication. Previewing or requesting review does not
+        publish your listing.
+      </p>
+    </section>
+    @if (preview(); as saved) {
+      <section class="preview-panel" aria-label="Private listing preview">
+        <h2 id="listing-preview-heading" tabindex="-1">Private listing preview</h2>
+        <p class="notice">
+          Status: {{ saved.status.replace('_', ' ') }}. This owner-only preview shows saved public
+          fields and processed photos. It is not a public listing.
+        </p>
+        <article>
+          <h3>{{ saved.content.title || 'Untitled draft' }}</h3>
+          <p class="preview-price">
+            {{ saved.content.priceMinor / 100 | price
+            }}{{ saved.content.transactionType === 'rent' ? ' / month' : '' }}
+          </p>
+          <p>
+            {{ saved.content.transactionType === 'rent' ? 'For rent' : 'For sale' }} ·
+            {{ saved.content.property.type }}
+          </p>
+          <p>
+            {{ saved.content.property.address.city
+            }}{{
+              saved.content.property.address.neighborhood
+                ? ', ' + saved.content.property.address.neighborhood
+                : ''
+            }}
+          </p>
+          <p class="preview-description">{{ saved.content.description }}</p>
+          <dl>
+            <dt>Area</dt>
+            <dd>{{ saved.content.property.details.areaM2 }} m²</dd>
+            <dt>Bedrooms</dt>
+            <dd>{{ saved.content.property.details.bedrooms }}</dd>
+            <dt>Bathrooms</dt>
+            <dd>{{ saved.content.property.details.bathrooms }}</dd>
+            <dt>Floor</dt>
+            <dd>{{ saved.content.property.details.floor }}</dd>
+            @if (saved.content.property.details.yearBuilt; as year) {
+              <dt>Year built</dt>
+              <dd>{{ year }}</dd>
+            }
+          </dl>
+          @if (saved.content.property.details.amenities.length) {
+            <h4>Amenities</h4>
+            <ul>
+              @for (amenity of saved.content.property.details.amenities; track amenity) {
+                <li>{{ amenity }}</li>
+              }
+            </ul>
+          }
+          <p class="muted">
+            Approximate public location: {{ saved.content.property.publicLocation.coordinates[1] }},
+            {{ saved.content.property.publicLocation.coordinates[0] }}. The exact pin and street
+            address stay private.
+          </p>
+          <div class="preview-photos">
+            @for (photo of saved.content.media.items; track photo.id) {
+              <figure>
+                <app-listing-photo
+                  [listingId]="listing.id"
+                  [mediaId]="photo.id"
+                  variant="large"
+                  [alt]="'Property photo ' + ($index + 1)"
+                />
+                @if (saved.content.media.coverMediaId === photo.id) {
+                  <figcaption>Cover photo</figcaption>
+                }
+              </figure>
+            } @empty {
+              <p>No processed photos to preview yet.</p>
+            }
+          </div>
+        </article>
+        <button nz-button type="button" (click)="closePreview()">
+          <span>Close preview</span>
+        </button>
+      </section>
+    }
+  } @else {
+    <p class="notice">Save your draft to add photos and preview the listing.</p>
+  }
 }

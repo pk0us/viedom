@@ -103,6 +103,42 @@ app-location-picker {
   flex-wrap: wrap;
   align-items: center;
 }
+.review-panel,
+.preview-panel {
+  margin-top: 28px;
+  padding: clamp(16px, 3vw, 28px);
+  border: 1px solid t.$border;
+  border-radius: t.$radius;
+  background: t.$surface;
+}
+.preview-description {
+  white-space: pre-wrap;
+}
+.preview-price {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 20px;
+}
+dd {
+  margin: 0;
+}
+.preview-photos {
+  display: grid;
+  gap: 20px;
+  margin: 24px 0;
+}
+figure {
+  margin: 0;
+  min-width: 0;
+}
+figcaption {
+  padding: 8px 0;
+  font-weight: 600;
+}
 button[nz-button],
 a[nz-button] {
   white-space: normal;

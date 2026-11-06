@@ -21,13 +21,22 @@ import {
 } from '@angular/forms/signals';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
-import type { OwnerListingDetail, OwnerProperty } from '@viedom/contracts';
+import type {
+  OwnerListingDetail,
+  OwnerListingPreview,
+  OwnerMediaGallery,
+  OwnerProperty,
+  SubmissionRequirement
+} from '@viedom/contracts';
 import { AuthSession } from '../../core/auth/auth-session';
 import { FieldFeedback } from '../../shared/field-feedback/field-feedback';
 import { UiState } from '../../shared/ui-state/ui-state';
 import { invalid, messages } from '../auth/auth-feedback';
 import { LocationPicker } from '../location-picker/location-picker';
 import { OwnerListingsClient } from '../owner-listings-client';
+import { ListingPhotos } from '../listing-photos/listing-photos';
+import { ListingPhoto } from '../listing-photos/listing-photo';
+import { PricePipe } from '../../shared/price-pipe';
 import {
   draftFromDetail,
   emptyDraft,
@@ -39,7 +48,17 @@ import {
 
 @Component({
   selector: 'app-listing-editor',
-  imports: [FormField, RouterLink, NzButtonModule, FieldFeedback, UiState, LocationPicker],
+  imports: [
+    FormField,
+    RouterLink,
+    NzButtonModule,
+    FieldFeedback,
+    UiState,
+    LocationPicker,
+    ListingPhotos,
+    ListingPhoto,
+    PricePipe
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './listing-editor.html',
   styleUrl: './listing-editor.scss',
@@ -53,6 +72,7 @@ export class ListingEditor {
   private readonly window = inject(DOCUMENT).defaultView;
   private readonly destroyRef = inject(DestroyRef);
   private epoch = 0;
+  private mediaEpoch = 0;
   private listingId: string | null = null;
   private createdProperty: OwnerProperty | null = null;
   private baseline = signal(emptyDraft());
@@ -65,8 +85,28 @@ export class ListingEditor {
   readonly success = signal('');
   readonly reloadRequired = signal(false);
   readonly uncertainCreation = signal(false);
+  readonly mediaBusy = signal(false);
+  readonly mediaRefreshing = signal(false);
+  readonly previewBusy = signal(false);
+  readonly preview = signal<OwnerListingPreview | null>(null);
+  readonly blocked = computed(
+    () => this.busy() || this.mediaBusy() || this.previewBusy() || this.mediaRefreshing()
+  );
   readonly dirty = computed(() => !sameContent(this.model(), this.baseline()));
   readonly archived = computed(() => this.detail()?.status === 'archived');
+  readonly reviewable = computed(() =>
+    ['draft', 'rejected', 'paused'].includes(this.detail()?.status ?? '')
+  );
+  readonly requirements: Record<SubmissionRequirement, string> = {
+    verifiedEmail: 'Verify your email address.',
+    title: 'Use a title with at least 10 characters.',
+    description: 'Use a description with at least 30 characters.',
+    bathrooms: 'Add at least one bathroom.',
+    processedMedia:
+      'Process every gallery photo and select a ready cover photo. Remove failed or unfinished uploads.',
+    moderationHold: 'This listing is on a moderation hold and cannot be submitted.',
+    state: 'This listing cannot request review in its current status.'
+  };
   readonly invalid = invalid;
   readonly messages = messages;
   readonly fields = form(this.model, (path) => {
@@ -138,6 +178,7 @@ export class ListingEditor {
       this.listingId = params.get('id');
       this.createdProperty = null;
       this.detail.set(null);
+      this.clearMediaState();
       this.model.set(emptyDraft());
       this.baseline.set(emptyDraft());
       this.reloadRequired.set(false);
@@ -147,9 +188,13 @@ export class ListingEditor {
       void this.load();
     });
     effect(() => {
+      if (this.dirty()) this.preview.set(null);
+    });
+    effect(() => {
       if (!this.session.user()) {
         this.epoch++;
         this.detail.set(null);
+        this.clearMediaState();
         this.createdProperty = null;
         this.model.set(emptyDraft());
         this.baseline.set(emptyDraft());
@@ -168,6 +213,7 @@ export class ListingEditor {
   }
 
   private apply(detail: OwnerListingDetail): void {
+    this.preview.set(null);
     this.detail.set(detail);
     const model = draftFromDetail(detail);
     this.model.set(model);
@@ -202,7 +248,7 @@ export class ListingEditor {
   }
 
   async reload(): Promise<void> {
-    if (this.busy() || this.uncertainCreation()) return;
+    if (this.blocked() || this.uncertainCreation()) return;
     if (
       this.dirty() &&
       !this.window?.confirm('Discard your unsaved changes and reload saved data?')
@@ -264,7 +310,7 @@ export class ListingEditor {
   async save(event: Event): Promise<void> {
     event.preventDefault();
     if (
-      this.busy() ||
+      this.blocked() ||
       this.archived() ||
       this.reloadRequired() ||
       this.loadError() ||
@@ -273,6 +319,7 @@ export class ListingEditor {
       return;
     this.error.set('');
     this.success.set('');
+    this.preview.set(null);
     await submit(this.fields, async () => {
       const epoch = this.epoch;
       const identity = this.session.identityVersion();
@@ -402,6 +449,142 @@ export class ListingEditor {
       privateLocation: property.privateLocation
     };
   }
+
+  private clearMediaState(): void {
+    this.mediaEpoch++;
+    this.preview.set(null);
+    this.mediaBusy.set(false);
+    this.mediaRefreshing.set(false);
+    this.previewBusy.set(false);
+  }
+
+  mediaConflict(): void {
+    this.preview.set(null);
+    this.reloadRequired.set(true);
+    this.error.set(
+      'The listing or photo update changed or its outcome is uncertain. Reload saved data before continuing.'
+    );
+  }
+
+  async galleryChanged(gallery: OwnerMediaGallery): Promise<void> {
+    const previous = this.detail();
+    if (
+      !previous ||
+      previous.id !== gallery.listingId ||
+      gallery.version === previous.version ||
+      this.busy()
+    )
+      return;
+    const mediaEpoch = ++this.mediaEpoch;
+    const epoch = this.epoch;
+    const identity = this.session.identityVersion();
+    this.mediaRefreshing.set(true);
+    this.preview.set(null);
+    try {
+      const latest = await this.api.detail(previous.id);
+      if (!this.current(epoch, identity) || mediaEpoch !== this.mediaEpoch || this.busy()) return;
+      if (
+        latest.property.version !== previous.property.version ||
+        !sameContent(
+          this.editableProperty(latest.property),
+          this.editableProperty(previous.property)
+        ) ||
+        !sameContent(this.editableListing(latest), this.editableListing(previous))
+      ) {
+        this.mediaConflict();
+        return;
+      }
+      this.detail.set(latest);
+    } catch (error) {
+      if (
+        this.current(epoch, identity) &&
+        mediaEpoch === this.mediaEpoch &&
+        (!(error instanceof HttpErrorResponse) || error.status !== 401)
+      )
+        this.mediaConflict();
+    } finally {
+      if (this.current(epoch, identity) && mediaEpoch === this.mediaEpoch)
+        this.mediaRefreshing.set(false);
+    }
+  }
+
+  async showPreview(): Promise<void> {
+    const listing = this.detail();
+    if (!listing || this.blocked() || this.dirty() || this.reloadRequired()) return;
+    const epoch = this.epoch;
+    const identity = this.session.identityVersion();
+    this.previewBusy.set(true);
+    this.error.set('');
+    this.preview.set(null);
+    try {
+      const preview = await this.api.preview(listing.id);
+      if (!this.current(epoch, identity)) return;
+      if (preview.version !== this.detail()?.version) {
+        this.mediaConflict();
+        return;
+      }
+      this.preview.set(preview);
+      this.window?.setTimeout(() =>
+        this.current(epoch, identity) && this.preview() === preview
+          ? this.window?.document.getElementById('listing-preview-heading')?.focus()
+          : undefined
+      );
+    } catch (error) {
+      if (
+        this.current(epoch, identity) &&
+        (!(error instanceof HttpErrorResponse) || error.status !== 401)
+      )
+        this.error.set('Your private preview could not be loaded. Try again or reload saved data.');
+    } finally {
+      if (this.current(epoch, identity)) this.previewBusy.set(false);
+    }
+  }
+
+  closePreview(): void {
+    this.preview.set(null);
+    this.window?.document.getElementById('preview-listing-button')?.focus();
+  }
+
+  async requestReview(): Promise<void> {
+    const listing = this.detail();
+    if (
+      !listing ||
+      this.blocked() ||
+      this.dirty() ||
+      this.reloadRequired() ||
+      !this.reviewable() ||
+      !listing.submission.canSubmit
+    )
+      return;
+    const epoch = this.epoch;
+    const identity = this.session.identityVersion();
+    this.busy.set(true);
+    this.error.set('');
+    this.success.set('');
+    this.preview.set(null);
+    try {
+      const result = await this.api.action(
+        listing.id,
+        listing.status === 'paused' ? 'resume' : 'submit',
+        listing.version
+      );
+      if (!this.current(epoch, identity)) return;
+      this.apply(result);
+      this.success.set('Submitted for review. Your listing is not published.');
+    } catch (error) {
+      if (!this.current(epoch, identity)) return;
+      const status = error instanceof HttpErrorResponse ? error.status : 0;
+      if ([0, 404, 409].includes(status) || status >= 500) this.mediaConflict();
+      else if (status === 400 || status === 403) {
+        this.error.set(
+          'The server could not submit this listing. Reload saved data to check current completeness and account status.'
+        );
+        this.reloadRequired.set(true);
+      } else if (status !== 401) this.error.set('Review could not be requested. Try again.');
+    } finally {
+      if (this.current(epoch, identity)) this.busy.set(false);
+    }
+  }
   private editableListing(listing: OwnerListingDetail) {
     return {
       transactionType: listing.transactionType,
@@ -414,11 +597,11 @@ export class ListingEditor {
 
   canLeave(): boolean {
     if (!this.session.user()) return true;
-    if (this.busy()) return false;
+    if (this.blocked()) return false;
     return !this.dirty() || !!this.window?.confirm('Leave without saving your changes?');
   }
   beforeUnload(event: BeforeUnloadEvent): void {
-    if (this.session.user() && (this.dirty() || this.busy())) {
+    if (this.session.user() && (this.dirty() || this.blocked())) {
       event.preventDefault();
       event.returnValue = '';
     }

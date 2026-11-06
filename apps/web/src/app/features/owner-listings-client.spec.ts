@@ -49,4 +49,19 @@ describe('private owner transport', () => {
     request.flush({ items: [], nextCursor: null });
     await rejected;
   });
+
+  it('uses private preview and versioned review routes without transfer cache', async () => {
+    const { client, http } = setup();
+    const preview = client.preview('abc');
+    const read = http.expectOne(`${publicConfig.apiBaseUrl}/me/listings/abc/preview`);
+    expect(read.request.transferCache).toBe(false);
+    read.flush({ version: 3 });
+    await preview;
+    const review = client.action('abc', 'submit', 3);
+    const write = http.expectOne(`${publicConfig.apiBaseUrl}/listings/abc/submit`);
+    expect(write.request.body).toEqual({ expectedVersion: 3 });
+    expect(write.request.transferCache).toBe(false);
+    write.flush({ status: 'pending_review' });
+    await review;
+  });
 });

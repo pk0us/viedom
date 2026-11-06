@@ -5,6 +5,7 @@ import { MikroORM, ObjectId } from '@mikro-orm/mongodb';
 import { MikroORM as CoreMikroORM } from '@mikro-orm/core';
 import type {
   OwnerListingDetail,
+  OwnerListingPreview,
   OwnerListingsResponse,
   OwnerProperty,
   PropertyContent
@@ -26,6 +27,7 @@ import { PropertiesModule } from '../src/properties/properties.module.js';
 import { ListingsModule } from '../src/listings/listings.module.js';
 import { ListingMediaPolicy, ListingsPolicy } from '../src/listings/listings.policy.js';
 import { OpenApiController } from '../src/openapi.js';
+import { MediaAsset, MediaGallery } from '../src/media/media.entities.js';
 
 const config = loadConfig();
 const run = new ObjectId().toHexString();
@@ -183,6 +185,8 @@ afterAll(async () => {
   if (orm) {
     const ids = accounts.map((user) => user._id);
     const db = orm.em.getConnection().getDb();
+    await db.collection('media_assets').deleteMany({ ownerId: { $in: ids } });
+    await db.collection('media_galleries').deleteMany({ ownerId: { $in: ids } });
     await db.collection('listings').deleteMany({ publisherId: { $in: ids } });
     await db.collection('properties').deleteMany({ ownerId: { $in: ids } });
     if (store) {
@@ -243,6 +247,7 @@ it('hides another owner resources for reads, writes, actions and property linkin
       [`properties/${p.id}`, 'GET', undefined],
       [`properties/${p.id}`, 'PATCH', { ...propertyInput, expectedVersion: 1 }],
       [`me/listings/${l.id}`, 'GET', undefined],
+      [`me/listings/${l.id}/preview`, 'GET', undefined],
       [`listings/${l.id}`, 'PATCH', { ...listingInput, expectedVersion: 1 }],
       ['listings', 'POST', { ...listingInput, propertyId: p.id, expectedPropertyVersion: 1 }]
     ] as const)
@@ -253,6 +258,147 @@ it('hides another owner resources for reads, writes, actions and property linkin
     expect(page.items.some((item) => item.id === l.id)).toBe(false);
   }
   expect((await owner.request(`properties/${new ObjectId()}`)).status).toBe(404);
+});
+
+it('previews only saved public fields and owned processed derivatives while retaining submission rules', async () => {
+  const l = await listing();
+  const em = orm.em.fork();
+  const ready = () => {
+    const asset = Object.assign(new MediaAsset(), {
+      listingId: new ObjectId(l.id),
+      ownerId: owner.id,
+      state: 'ready',
+      originalKey: `private-original/${new ObjectId()}`,
+      contentType: 'image/jpeg',
+      expectedBytes: 100,
+      uploadExpiresAt: new Date(Date.now() + 60_000)
+    });
+    const large = `private-processed/${asset._id}/large`;
+    const thumbnail = `private-processed/${asset._id}/thumbnail`;
+    asset.processingKeys = [large, thumbnail];
+    asset.variants = {
+      large: { key: large, width: 800, height: 600, bytes: 100 },
+      thumbnail: { key: thumbnail, width: 400, height: 300, bytes: 50 }
+    };
+    return asset;
+  };
+  const first = ready();
+  const second = ready();
+  const processing = Object.assign(ready(), { state: 'processing', variants: null });
+  const failed = Object.assign(ready(), {
+    state: 'failed',
+    errorCode: 'invalid_image',
+    variants: null
+  });
+  const foreign = Object.assign(ready(), { ownerId: other.id });
+  const invalid = Object.assign(ready(), { processingKeys: [] });
+  const gallery = Object.assign(new MediaGallery(), {
+    listingId: new ObjectId(l.id),
+    ownerId: owner.id,
+    mediaIds: [second, processing, foreign, failed, invalid, first].map((asset) =>
+      asset._id.toHexString()
+    ),
+    coverMediaId: processing._id.toHexString()
+  });
+  em.persist([first, second, processing, failed, foreign, invalid, gallery]);
+  await em.flush();
+
+  const response = await owner.request(`me/listings/${l.id}/preview`);
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(response.headers.get('x-robots-tag')).toBe('noindex');
+  expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+  const preview: OwnerListingPreview = await response.json();
+  expect(Object.keys(preview).sort()).toEqual(['content', 'status', 'submission', 'version']);
+  expect(preview.status).toBe('draft');
+  expect(preview.submission).toEqual({ canSubmit: false, missing: ['processedMedia'] });
+  expect(preview.content).toMatchObject({
+    ...listingInput,
+    property: {
+      type: propertyInput.type,
+      details: propertyInput.details,
+      address: { countryCode: 'GR', city: 'Thessaloniki', neighborhood: 'Synthetic' },
+      publicLocation: l.property.publicLocation
+    },
+    media: { coverMediaId: null }
+  });
+  expect(preview.content.media.items.map((asset) => asset.id)).toEqual([
+    second._id.toHexString(),
+    first._id.toHexString()
+  ]);
+  expect(preview.content.media.items[0]!.variants.large).toEqual({
+    url: `${config.public.apiBaseUrl}/listings/${l.id}/media/${second._id.toHexString()}/large`,
+    width: 800,
+    height: 600,
+    bytes: 100,
+    contentType: 'image/webp'
+  });
+  const serialized = JSON.stringify(preview);
+  for (const privateValue of [
+    'street',
+    propertyInput.address.street,
+    'privateLocation',
+    'propertyId',
+    'ownerId',
+    'publisherId',
+    'originalKey',
+    'processingKeys',
+    'private-original',
+    'private-processed',
+    l.property.id,
+    owner.id.toHexString(),
+    processing._id.toHexString(),
+    failed._id.toHexString(),
+    foreign._id.toHexString(),
+    invalid._id.toHexString()
+  ])
+    expect(serialized).not.toContain(privateValue);
+  expect(preview.content.property.publicLocation.coordinates).not.toEqual(
+    propertyInput.privateLocation.coordinates
+  );
+  expect((await action(l.id, 'submit', l.version)).status).toBe(409);
+
+  await orm.em.fork().nativeUpdate(MediaGallery, gallery._id, {
+    mediaIds: [second._id.toHexString(), first._id.toHexString()],
+    coverMediaId: first._id.toHexString()
+  });
+  const complete = await owner.request(`me/listings/${l.id}/preview`);
+  expect((await complete.json()).submission).toEqual({ canSubmit: true, missing: [] });
+  const submitted = await action(l.id, 'submit', l.version);
+  expect(submitted.status).toBe(200);
+  expect(await submitted.json()).toMatchObject({
+    status: 'pending_review',
+    version: 2,
+    publishedAt: null
+  });
+  expect((await stored(l.id)).approvedVersion).toBeNull();
+  expect((await action(l.id, 'submit', 2)).status).toBe(409);
+});
+
+it('requires a bearer session for preview and permits the owning unverified user to inspect missing requirements', async () => {
+  const l = await listing(unverified);
+  const anonymous = new Client(new ObjectId(), '');
+  const denied = await anonymous.request(`me/listings/${l.id}/preview`);
+  expect(denied.status).toBe(401);
+  expect(denied.headers.get('cache-control')).toBe('no-store');
+  const response = await unverified.request(`me/listings/${l.id}/preview`);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    status: 'draft',
+    submission: { canSubmit: false, missing: ['verifiedEmail', 'processedMedia'] },
+    content: { media: { coverMediaId: null, items: [] } }
+  });
+});
+
+it('rejects a preview when saved content changes while its readiness is being read', async () => {
+  const l = await listing();
+  vi.spyOn(media, 'ready').mockImplementationOnce(async () => {
+    await orm.em.fork().nativeUpdate(Listing, new ObjectId(l.id), { version: 2 });
+    return false;
+  });
+  const response = await owner.request(`me/listings/${l.id}/preview`);
+  expect(response.status).toBe(409);
+  expect(response.headers.get('cache-control')).toBe('no-store');
 });
 
 it('rejects privileged fields, nested operators, invalid money, coordinates and malformed versions/queries', async () => {

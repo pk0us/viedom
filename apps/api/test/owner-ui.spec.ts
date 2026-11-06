@@ -6,13 +6,19 @@ import { MikroORM as CoreMikroORM } from '@mikro-orm/core';
 import { chromium, expect as browserExpect } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import sharp from 'sharp';
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
-import type { OwnerListingDetail } from '@viedom/contracts';
+import type {
+  MediaUploadResponse,
+  OwnerListingDetail,
+  OwnerListingPreview,
+  OwnerMediaGallery
+} from '@viedom/contracts';
 import { loadConfig, root } from '../../../scripts/config.mjs';
 import { localTarget } from '../src/database/local-target.js';
 import { ormOptions } from '../src/database/orm-options.js';
@@ -28,6 +34,10 @@ import { PropertiesModule } from '../src/properties/properties.module.js';
 import { ListingsModule } from '../src/listings/listings.module.js';
 import { ApiErrorFilter } from '../src/api-error.filter.js';
 import { propertySnapshot } from '../src/database/snapshots.js';
+import { MediaModule } from '../src/media/media.module.js';
+import { MediaAsset } from '../src/media/media.entities.js';
+import { MediaWorker } from '../src/media/media.worker.js';
+import { MediaStorage } from '../src/media/storage.js';
 
 const config = loadConfig();
 const run = randomUUID();
@@ -41,6 +51,8 @@ let app: INestApplication;
 let web: ChildProcess;
 let browser: Browser;
 let passwordHash: string;
+let worker: MediaWorker;
+let storage: MediaStorage;
 
 beforeAll(async () => {
   if (config.mode === 'production') throw new Error('Owner smoke refuses production.');
@@ -52,7 +64,7 @@ beforeAll(async () => {
   orm = await MikroORM.init(ormOptions(target.uri, target.dbName));
   await provision(orm);
   const module = await Test.createTestingModule({
-    imports: [AuthModule, PropertiesModule, ListingsModule]
+    imports: [AuthModule, PropertiesModule, ListingsModule, MediaModule]
   })
     .overrideProvider(MikroORM)
     .useValue(orm)
@@ -69,6 +81,8 @@ beforeAll(async () => {
   );
   app.useGlobalFilters(new ApiErrorFilter());
   store = app.get(AuthStore);
+  worker = app.get(MediaWorker);
+  storage = app.get(MediaStorage);
   const limit = store.limit.bind(store);
   vi.spyOn(store, 'limit').mockImplementation(async (scope, key, maximum, seconds) => {
     const owned = `${run}:${key}`;
@@ -104,9 +118,21 @@ afterAll(async () => {
     await exited;
   }
   if (orm && store) {
+    await worker?.onModuleDestroy();
     const ids = accounts.map((user) => user._id);
     const sessions = await store.sessions.find({ userId: { $in: ids } }).toArray();
     const db = orm.em.getConnection().getDb();
+    const assets = await orm.em.fork().find(MediaAsset, { ownerId: { $in: ids } });
+    for (const asset of assets) {
+      const keys = [
+        asset.originalKey,
+        ...asset.processingKeys,
+        ...(asset.variants ? [asset.variants.large.key, asset.variants.thumbnail.key] : [])
+      ];
+      for (const key of new Set(keys)) await storage.remove(key);
+    }
+    await db.collection('media_assets').deleteMany({ ownerId: { $in: ids } });
+    await db.collection('media_galleries').deleteMany({ ownerId: { $in: ids } });
     await db.collection('listings').deleteMany({ publisherId: { $in: ids } });
     await db.collection('properties').deleteMany({ ownerId: { $in: ids } });
     await store.actions.deleteMany({ userId: { $in: ids } });
@@ -121,12 +147,13 @@ afterAll(async () => {
   await orm?.close(true);
 });
 
-async function account(): Promise<User> {
+async function account(verified = false): Promise<User> {
   const user = Object.assign(new User(), {
     email: `${run}.${accounts.length}@example.invalid`,
     firstName: 'Browser',
     lastName: 'Owner',
-    passwordHash
+    passwordHash,
+    ...(verified ? { emailVerifiedAt: new Date() } : {})
   });
   accounts.push(user);
   const em = orm.em.fork();
@@ -174,6 +201,23 @@ async function detail(user: User, id: string): Promise<OwnerListingDetail> {
   const response = await request(user, `me/listings/${id}`);
   expect(response.status).toBe(200);
   return response.json();
+}
+
+async function gallery(user: User, id: string): Promise<OwnerMediaGallery> {
+  const response = await request(user, `listings/${id}/media`);
+  expect(response.status).toBe(200);
+  return response.json();
+}
+
+async function imageFile(name: string, background = '#376a8f') {
+  return {
+    name,
+    mimeType: 'image/jpeg',
+    buffer: await sharp({ create: { width: 800, height: 600, channels: 3, background } })
+      .withMetadata({ exif: { IFD0: { Artist: 'PRIVATE SYNTHETIC IMAGE METADATA' } } })
+      .jpeg()
+      .toBuffer()
+  };
 }
 
 async function fillDraft(page: Page, title = 'Synthetic courtyard apartment'): Promise<void> {
@@ -254,7 +298,9 @@ it('saves, reopens and edits exact draft values on desktop and mobile without pu
     await browserExpect(
       page.getByLabel('Street address (private, optional)', { exact: true })
     ).toHaveValue('PRIVATE SYNTHETIC COURTYARD 37');
-    await browserExpect(page.getByRole('button', { name: /submit|publish/i })).toHaveCount(0);
+    await browserExpect(
+      page.getByRole('button', { name: 'Submit for review', exact: true })
+    ).toBeDisabled();
 
     for (const width of [375, 768, 1440]) {
       await page.setViewportSize({ width, height: 960 });
@@ -363,6 +409,276 @@ it('loads the browser map worker and persists a manually selected private pin', 
       path: resolve(artifactDirectory, 'location-picker.png'),
       fullPage: true
     });
+  } finally {
+    await browsing.close();
+  }
+});
+
+it('uploads private photos, edits the gallery by keyboard, previews safe fields and submits once for review', async () => {
+  const user = await account(true);
+  const other = await account(true);
+  const browsing = await context();
+  let releasePut = () => {};
+  let releaseSubmit = () => {};
+  try {
+    const page = await browsing.newPage();
+    const errors: string[] = [];
+    const authorizations: Promise<MediaUploadResponse>[] = [];
+    let successfulPuts = 0;
+    const storageCredentials: {
+      authorization: string | undefined;
+      cookie: string | undefined;
+    }[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('response', (response) => {
+      if (response.url().endsWith('/media/upload-url') && response.ok())
+        authorizations.push(response.json());
+      if (response.request().method() === 'PUT' && response.ok()) successfulPuts++;
+    });
+    page.on('request', (outgoing) => {
+      if (outgoing.method() === 'PUT') {
+        const { authorization, cookie } = outgoing.headers();
+        storageCredentials.push({ authorization, cookie });
+      }
+    });
+    await signIn(page, user);
+    const id = await createDraft(page);
+    const photos = page.getByRole('region', { name: 'Listing photos', exact: true });
+    const cards = photos.getByRole('list', { name: 'Listing photo gallery', exact: true });
+    worker.stop();
+    const putGate = new Promise<void>((resolve) => (releasePut = resolve));
+    let gated = false;
+    await page.route(
+      (url) => url.origin === new URL(config.storage.endpoint).origin,
+      async (route) => {
+        if (route.request().method() === 'PUT' && !gated) {
+          gated = true;
+          await putGate;
+        }
+        await route.continue();
+      }
+    );
+    const picker = photos.getByLabel('Add photos', { exact: true });
+    await browserExpect(picker).toBeEnabled();
+    await picker.setInputFiles([
+      await imageFile('courtyard.jpg'),
+      await imageFile('kitchen.jpg', '#406842'),
+      await imageFile('balcony.jpg', '#91592c')
+    ]);
+    await browserExpect(
+      photos.getByRole('progressbar', { name: 'Uploading courtyard.jpg', exact: true })
+    ).toBeVisible();
+    await browserExpect(
+      page.getByRole('button', { name: 'Submit for review', exact: true })
+    ).toBeDisabled();
+    releasePut();
+    await browserExpect(cards.getByText('Queued for processing', { exact: true })).toHaveCount(3);
+    expect(successfulPuts).toBe(3);
+    expect(storageCredentials).toEqual([
+      { authorization: undefined, cookie: undefined },
+      { authorization: undefined, cookie: undefined },
+      { authorization: undefined, cookie: undefined }
+    ]);
+    const uploaded = await Promise.all(authorizations);
+    expect(uploaded.length).toBe(3);
+    const queued = await gallery(user, id);
+    expect(queued.items.map((item) => item.state)).toEqual(['queued', 'queued', 'queued']);
+    expect((await detail(user, id)).submission.missing).toContain('processedMedia');
+    const queuedPreview = page.waitForResponse((response) =>
+      response.url().endsWith(`/me/listings/${id}/preview`)
+    );
+    await page.getByRole('button', { name: 'Preview saved listing', exact: true }).click();
+    const queuedRepresentation: OwnerListingPreview = await (await queuedPreview).json();
+    expect(queuedRepresentation.content.media.items).toEqual([]);
+    const serialized = JSON.stringify(queuedRepresentation);
+    for (const privateValue of [
+      'PRIVATE SYNTHETIC COURTYARD 37',
+      '22.954321',
+      '40.643219',
+      'privateLocation',
+      'originalKey',
+      'uploadUrl'
+    ])
+      expect(serialized).not.toContain(privateValue);
+    for (const authorization of uploaded) {
+      const original = new URL(authorization.uploadUrl);
+      original.search = '';
+      expect((await fetch(original)).ok).toBe(false);
+      expect(
+        (await fetch(`${config.public.apiBaseUrl}/media/${id}/${authorization.mediaId}/large`))
+          .status
+      ).toBe(404);
+    }
+    const previewEndpoint = `${config.public.apiBaseUrl}/me/listings/${id}/preview`;
+    expect((await fetch(previewEndpoint)).status).toBe(401);
+    expect((await request(other, `me/listings/${id}/preview`)).status).toBe(404);
+    worker.onModuleInit();
+    await browserExpect(cards.getByText('Ready', { exact: true })).toHaveCount(3, {
+      timeout: 25000
+    });
+    await page.setViewportSize({ width: 375, height: 900 });
+    const move = photos.getByRole('button', { name: 'Move photo 3 earlier', exact: true });
+    const reorder = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/listings/${id}/media`) && response.request().method() === 'PATCH'
+    );
+    await move.focus();
+    await page.keyboard.press('Enter');
+    expect((await reorder).ok()).toBe(true);
+    expect((await gallery(user, id)).items.map((item) => item.id)).toEqual([
+      queued.items[0]!.id,
+      queued.items[2]!.id,
+      queued.items[1]!.id
+    ]);
+    const cover = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/listings/${id}/media`) && response.request().method() === 'PATCH'
+    );
+    await photos.getByRole('button', { name: 'Use photo 2 as cover', exact: true }).click();
+    expect((await cover).ok()).toBe(true);
+    expect((await gallery(user, id)).coverMediaId).toBe(queued.items[2]!.id);
+    const deleted = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/media/${queued.items[1]!.id}`) &&
+        response.request().method() === 'DELETE'
+    );
+    await photos.getByRole('button', { name: 'Delete photo 3', exact: true }).click();
+    expect((await deleted).ok()).toBe(true);
+    await browserExpect(cards.getByRole('listitem')).toHaveCount(2);
+    expect((await gallery(user, id)).items.map((item) => item.id)).toEqual([
+      queued.items[0]!.id,
+      queued.items[2]!.id
+    ]);
+    const previewResponse = page.waitForResponse((response) =>
+      response.url().endsWith(`/me/listings/${id}/preview`)
+    );
+    await page.getByRole('button', { name: 'Preview saved listing', exact: true }).click();
+    const response = await previewResponse;
+    expect(response.headers()['cache-control']).toBe('no-store');
+    const representation: OwnerListingPreview = await response.json();
+    expect(representation.status).toBe('draft');
+    expect(representation.content.media.items.map((item) => item.id)).toEqual([
+      queued.items[0]!.id,
+      queued.items[2]!.id
+    ]);
+    const preview = page.getByRole('region', { name: 'Private listing preview', exact: true });
+    await browserExpect(
+      preview.getByRole('heading', { name: 'Private listing preview' })
+    ).toBeVisible();
+    await browserExpect(preview.getByRole('img')).toHaveCount(2);
+    const previewText = await preview.innerText();
+    expect(previewText).not.toContain('PRIVATE SYNTHETIC COURTYARD 37');
+    expect(previewText).not.toContain('22.954321');
+    expect(previewText).not.toContain('40.643219');
+    expect(await page.locator('html').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+      true
+    );
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    await page.screenshot({
+      path: resolve(artifactDirectory, 'photos-preview-mobile.png'),
+      fullPage: true
+    });
+    await preview.getByRole('button', { name: 'Close preview', exact: true }).click();
+    await browserExpect(
+      page.getByRole('button', { name: 'Preview saved listing', exact: true })
+    ).toBeFocused();
+
+    let submissions = 0;
+    const submitGate = new Promise<void>((resolve) => (releaseSubmit = resolve));
+    await page.route(`${config.public.apiBaseUrl}/listings/${id}/submit`, async (route) => {
+      submissions++;
+      await submitGate;
+      await route.continue();
+    });
+    const submit = page.getByRole('button', { name: 'Submit for review', exact: true });
+    await browserExpect(submit).toBeEnabled();
+    await submit.focus();
+    await page.keyboard.press('Enter');
+    await browserExpect(submit).toBeDisabled();
+    await browserExpect.poll(() => submissions).toBe(1);
+    await page.keyboard.press('Enter');
+    expect(submissions).toBe(1);
+    releaseSubmit();
+    await browserExpect(
+      page.getByText('Submitted for review. Your listing is not published.', { exact: true })
+    ).toBeVisible();
+    const submitted = await detail(user, id);
+    expect(submitted.status).toBe('pending_review');
+    expect(submitted.publishedAt).toBeNull();
+    expect(submitted.submittedVersion).toBe(submitted.version);
+    expect(submissions).toBe(1);
+    for (const item of representation.content.media.items)
+      expect((await fetch(`${config.public.apiBaseUrl}/media/${id}/${item.id}/large`)).status).toBe(
+        404
+      );
+    await noPersistentPrivateData(browsing);
+    expect(errors).toEqual([]);
+  } finally {
+    releasePut();
+    releaseSubmit();
+    if (worker) {
+      worker.stop();
+      worker.onModuleInit();
+    }
+    await browsing.close();
+  }
+});
+
+it('recovers a failed storage upload and keeps invalid processed images out of submission', async () => {
+  const user = await account(true);
+  const browsing = await context();
+  try {
+    const page = await browsing.newPage();
+    await signIn(page, user);
+    const id = await createDraft(page);
+    const photos = page.getByRole('region', { name: 'Listing photos', exact: true });
+    const picker = photos.getByLabel('Add photos', { exact: true });
+    let interrupted = false;
+    await page.route(
+      (url) => url.origin === new URL(config.storage.endpoint).origin,
+      async (route) => {
+        if (route.request().method() === 'PUT' && !interrupted) {
+          interrupted = true;
+          await route.abort('connectionfailed');
+        } else await route.continue();
+      }
+    );
+    await browserExpect(picker).toBeEnabled();
+    await picker.setInputFiles(await imageFile('retry-courtyard.jpg'));
+    const retry = photos.getByRole('button', { name: 'Retry photo 1', exact: true });
+    await browserExpect(retry).toBeVisible();
+    expect(interrupted).toBe(true);
+    await retry.click();
+    await browserExpect(photos.getByText('Ready', { exact: true })).toHaveCount(1, {
+      timeout: 20000
+    });
+    expect((await gallery(user, id)).items).toHaveLength(1);
+    await picker.setInputFiles({
+      name: 'invalid-image.jpg',
+      mimeType: 'image/jpeg',
+      buffer: Buffer.from('Synthetic text pretending to be a JPEG image.')
+    });
+    await browserExpect(photos.getByText(/^Photo failed:/)).toBeVisible({
+      timeout: 20000
+    });
+    const failed = await gallery(user, id);
+    expect(failed.items.map((item) => item.state)).toEqual(['ready', 'failed']);
+    expect((await detail(user, id)).submission.missing).toContain('processedMedia');
+    await browserExpect(
+      page.getByRole('button', { name: 'Submit for review', exact: true })
+    ).toBeDisabled();
+    const previewResponse = page.waitForResponse((response) =>
+      response.url().endsWith(`/me/listings/${id}/preview`)
+    );
+    await page.getByRole('button', { name: 'Preview saved listing', exact: true }).click();
+    const preview: OwnerListingPreview = await (await previewResponse).json();
+    expect(preview.content.media.items.map((item) => item.id)).toEqual([failed.items[0]!.id]);
+    await photos.getByRole('button', { name: 'Delete photo 2', exact: true }).click();
+    await browserExpect(photos.getByText(/^Photo failed:/)).toHaveCount(0);
+    await browserExpect(
+      page.getByRole('button', { name: 'Submit for review', exact: true })
+    ).toBeEnabled();
+    expect((await detail(user, id)).status).toBe('draft');
   } finally {
     await browsing.close();
   }

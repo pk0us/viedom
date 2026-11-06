@@ -145,6 +145,25 @@ export interface OwnerListingsResponse {
   nextCursor: string | null;
 }
 
+export interface ListingPreviewContent extends ListingContent {
+  property: {
+    type: PropertyType;
+    details: PropertyContent['details'];
+    address: { countryCode: 'GR'; city: string; neighborhood: string };
+    publicLocation: GeoPoint;
+  };
+  media: {
+    coverMediaId: string | null;
+    items: { id: string; variants: { large: MediaVariant; thumbnail: MediaVariant } }[];
+  };
+}
+export interface OwnerListingPreview {
+  version: number;
+  status: ListingStatus;
+  submission: { canSubmit: boolean; missing: SubmissionRequirement[] };
+  content: ListingPreviewContent;
+}
+
 export type MediaState =
   'awaiting_upload' | 'queued' | 'processing' | 'ready' | 'failed' | 'deleted';
 export type UploadContentType = 'image/jpeg' | 'image/png' | 'image/webp';

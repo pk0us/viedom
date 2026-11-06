@@ -108,7 +108,7 @@ export const openApiDocument = {
   openapi: '3.1.0',
   info: {
     title: 'Viedom owner property and listing API',
-    version: '0.10.0',
+    version: '0.11.0',
     description:
       'Bearer authentication only; cookies do not authorize owner operations. PATCH replaces all editable content. Stale mutations conflict; clients must reload after 409. Original uploads are private. Processed images require owner authorization or current publication eligibility.'
   },
@@ -163,6 +163,16 @@ export const openApiDocument = {
     '/me/listings/{id}': {
       parameters: [parameter],
       get: operation('readOwnListing', 'OwnerListingDetail')
+    },
+    '/me/listings/{id}/preview': {
+      parameters: [parameter],
+      get: operation(
+        'previewOwnListing',
+        'OwnerListingPreview',
+        undefined,
+        false,
+        'Owner-only saved-content preview with status and submission readiness outside the intended public field projection. Omits street, private coordinates, account/property IDs and unprocessed images. Image URLs still require the owner bearer session. Previewing never publishes.'
+      )
     },
     '/listings/{id}/media': {
       parameters: [parameter],
@@ -308,6 +318,53 @@ export const openApiDocument = {
       OwnerListings: object({
         items: { type: 'array', maxItems: 50, items: ref('OwnerListingSummary') },
         nextCursor: nullable(string(256, 1))
+      }),
+      ListingPreviewContent: object({
+        ...listing,
+        property: object({
+          type: property.type,
+          details: property.details,
+          address: object({
+            countryCode: { const: 'GR' },
+            city: string(100, 1),
+            neighborhood: string(100)
+          }),
+          publicLocation: point
+        }),
+        media: object({
+          coverMediaId: nullable(id),
+          items: {
+            type: 'array',
+            maxItems: 20,
+            items: object({
+              id,
+              variants: object({ large: ref('MediaVariant'), thumbnail: ref('MediaVariant') })
+            })
+          }
+        })
+      }),
+      OwnerListingPreview: object({
+        version,
+        status: summary.status,
+        submission: ref('SubmissionReadiness'),
+        content: ref('ListingPreviewContent')
+      }),
+      SubmissionReadiness: object({
+        canSubmit: { type: 'boolean' },
+        missing: {
+          type: 'array',
+          items: {
+            enum: [
+              'verifiedEmail',
+              'title',
+              'description',
+              'bathrooms',
+              'processedMedia',
+              'moderationHold',
+              'state'
+            ]
+          }
+        }
       }),
       MediaVariant: object({
         url: { type: 'string' },

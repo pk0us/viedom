@@ -6,6 +6,7 @@ import type {
   CreateListingRequest,
   ListingStatus,
   OwnerListingDetail,
+  OwnerListingPreview,
   OwnerListingsResponse,
   OwnerProperty,
   PropertyContent,
@@ -42,6 +43,17 @@ export class OwnerListingsClient {
       firstValueFrom(
         this.http.get<OwnerListingDetail>(
           `${this.base}/me/listings/${encodeURIComponent(id)}`,
+          this.options
+        )
+      )
+    );
+  }
+
+  preview(id: string): Promise<OwnerListingPreview> {
+    return this.request(() =>
+      firstValueFrom(
+        this.http.get<OwnerListingPreview>(
+          `${this.base}/me/listings/${encodeURIComponent(id)}/preview`,
           this.options
         )
       )
@@ -99,7 +111,7 @@ export class OwnerListingsClient {
 
   action(
     id: string,
-    action: 'pause' | 'archive',
+    action: 'pause' | 'archive' | 'submit' | 'resume',
     expectedVersion: number
   ): Promise<OwnerListingDetail> {
     return this.request(() =>
