@@ -1,11 +1,25 @@
 import type { Routes } from '@angular/router';
+import { unsavedListingGuard } from './unsaved-listing-guard';
 
 export const ownerRoutes: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    title: 'Owner workspace preview · Viedom',
+    title: 'My listings · Viedom',
     loadComponent: () => import('./owner-overview/owner-overview').then((m) => m.OwnerOverview)
+  },
+  {
+    path: 'listings/new',
+    title: 'New listing · Viedom',
+    canDeactivate: [unsavedListingGuard],
+    loadComponent: () => import('./listing-editor/listing-editor').then((m) => m.ListingEditor)
+  },
+  {
+    path: 'listings/:id',
+    title: 'Edit listing · Viedom',
+    canDeactivate: [unsavedListingGuard],
+    runGuardsAndResolvers: 'paramsChange',
+    loadComponent: () => import('./listing-editor/listing-editor').then((m) => m.ListingEditor)
   },
   {
     path: '**',

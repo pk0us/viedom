@@ -62,6 +62,31 @@ export function validateConfig(env) {
   const webOrigin = url('WEB_ORIGIN', true);
   const browserApi = url('PUBLIC_API_BASE_URL');
   const ssrApi = url('SSR_API_BASE_URL');
+  const mapStyle = urlFromMapSetting();
+  function urlFromMapSetting() {
+    const key = 'PUBLIC_MAP_STYLE_URL';
+    const value = env[key] ?? 'https://tiles.openfreemap.org/styles/liberty';
+    let parsed;
+    try {
+      parsed = new URL(value);
+    } catch {
+      invalid(key, 'use an absolute HTTPS style URL');
+    }
+    if (
+      (parsed.protocol !== 'https:' &&
+        !(
+          mode !== 'production' &&
+          parsed.protocol === 'http:' &&
+          ['localhost', '127.0.0.1'].includes(parsed.hostname)
+        )) ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash
+    )
+      invalid(key, 'use HTTPS (or local development HTTP), without credentials, query or fragment');
+    return parsed.href;
+  }
   if (mode !== 'production') {
     for (const [key, value, expected] of [
       ['WEB_ORIGIN', webOrigin, ports.web],
@@ -263,7 +288,8 @@ export function validateConfig(env) {
       map: {
         longitude: number('PUBLIC_MAP_LONGITUDE', -180, 180),
         latitude: number('PUBLIC_MAP_LATITUDE', -90, 90),
-        zoom: number('PUBLIC_MAP_ZOOM', 0, 22)
+        zoom: number('PUBLIC_MAP_ZOOM', 0, 22),
+        styleUrl: mapStyle
       }
     }
   };

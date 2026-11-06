@@ -67,6 +67,11 @@ try {
     [cliPath('vitest', apiDirectory), 'run', '--config', 'vitest.auth-ui.config.ts'],
     { cwd: apiDirectory }
   );
+  await run(
+    process.execPath,
+    [cliPath('vitest', apiDirectory), 'run', '--config', 'vitest.owner-ui.config.ts'],
+    { cwd: apiDirectory }
+  );
   children.push(spawn(process.execPath, ['dist/main.js'], { cwd: apiDirectory, stdio: 'inherit' }));
   await waitFor(`${config.public.apiBaseUrl}/health/ready`);
   const cors = await fetch(`${config.public.apiBaseUrl}/health`, {

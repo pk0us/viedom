@@ -4,7 +4,12 @@ export interface PublicConfig {
   readonly locale: string;
   readonly currency: 'EUR';
   readonly city: string;
-  readonly map: { readonly longitude: number; readonly latitude: number; readonly zoom: number };
+  readonly map: {
+    readonly longitude: number;
+    readonly latitude: number;
+    readonly zoom: number;
+    readonly styleUrl: string;
+  };
 }
 
 export interface HealthResponse {

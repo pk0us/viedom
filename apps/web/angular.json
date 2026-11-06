@@ -26,11 +26,17 @@
             "inlineStyleLanguage": "scss",
             "assets": [
               {
+                "glob": "maplibre-gl-worker.mjs",
+                "input": "node_modules/maplibre-gl/dist",
+                "output": "maplibre"
+              },
+              {
                 "glob": "**/*",
                 "input": "public"
               }
             ],
             "styles": [
+              "node_modules/maplibre-gl/dist/maplibre-gl.css",
               "node_modules/ng-zorro-antd/style/index.min.css",
               "node_modules/ng-zorro-antd/button/style/index.min.css",
               "node_modules/ng-zorro-antd/alert/style/index.min.css",

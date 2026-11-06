@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { MikroORM } from '@mikro-orm/mongodb';
+import { MikroORM as CoreMikroORM } from '@mikro-orm/core';
 import { chromium, expect as browserExpect } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -18,6 +19,7 @@ import { ormOptions } from '../src/database/orm-options.js';
 import { provision } from '../src/database/provision.js';
 import { Configuration } from '../src/configuration.js';
 import { AuthModule } from '../src/auth/auth.module.js';
+import { ListingsModule } from '../src/listings/listings.module.js';
 import { AuthStore } from '../src/auth/auth.store.js';
 import { GoogleStrategy } from '../src/auth/google.auth.js';
 import { ApiErrorFilter } from '../src/api-error.filter.js';
@@ -57,8 +59,10 @@ beforeAll(async () => {
   const target = localTarget(config, true);
   orm = await MikroORM.init(ormOptions(target.uri, target.dbName));
   await provision(orm);
-  const module = await Test.createTestingModule({ imports: [AuthModule] })
+  const module = await Test.createTestingModule({ imports: [AuthModule, ListingsModule] })
     .overrideProvider(MikroORM)
+    .useValue(orm)
+    .overrideProvider(CoreMikroORM)
     .useValue(orm)
     .overrideProvider(Configuration)
     .useValue({

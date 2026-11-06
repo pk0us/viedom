@@ -1,0 +1,390 @@
+<a class="back-link" routerLink="/owner">← My listings</a>
+<p class="eyebrow">Your property, your draft</p>
+<h1 tabindex="-1">{{ detail() ? 'Edit listing' : 'Create a listing' }}</h1>
+@if (loading()) {
+  <app-ui-state
+    kind="loading"
+    heading="Loading your listing"
+    description="Getting the latest saved property and listing."
+  />
+} @else if (loadError()) {
+  <app-ui-state
+    kind="error"
+    heading="Listing unavailable"
+    [description]="loadError()"
+    retryLabel="Try again"
+    (retry)="load()"
+  />
+} @else {
+  <p class="intro">
+    Save your property details and listing text now, then return to finish your draft.
+  </p>
+  @if (archived()) {
+    <p class="notice" role="status">This listing is archived and cannot be edited.</p>
+  }
+  @if (detail(); as listing) {
+    <p class="notice">
+      Status: {{ listing.status.replace('_', ' ') }}. Saving reviewed listing content withdraws it
+      to draft for a new review. Changing the property details withdraws all its non-archived
+      advertisements to draft.
+    </p>
+  }
+  <p class="notice">
+    Photos are not available yet. A draft without processed photos is not ready to submit for review
+    or publish.
+  </p>
+  @if (reloadRequired()) {
+    <div class="conflict">
+      <p role="alert">{{ error() }}</p>
+      @if (uncertainCreation()) {
+        <a nz-button routerLink="/owner"><span>Check My listings</span></a>
+        <p>
+          This new listing may already exist. Copy any text you want to keep, then check My listings
+          before starting another draft.
+        </p>
+      } @else {
+        <button nz-button type="button" [disabled]="busy()" (click)="reload()">
+          <span>{{ detail() ? 'Reload saved listing' : 'Check saved data' }}</span>
+        </button>
+        <p>
+          {{
+            detail()
+              ? 'Reloading replaces unsaved edits. Copy any text you want to keep before reloading.'
+              : 'Check the saved data before trying again. Your draft input stays here when a saved property can be reloaded.'
+          }}
+        </p>
+      }
+    </div>
+  }
+  <form (submit)="save($event)" novalidate>
+    <p>
+      Fields are required unless marked optional. Title and description can be left blank in drafts.
+    </p>
+    <fieldset [disabled]="busy() || archived() || reloadRequired()">
+      <legend>Property information</legend>
+      <div class="form-grid">
+        <div class="form-field">
+          <label for="listing-type">Property type</label>
+          <select id="listing-type" [formField]="fields.type">
+            <option value="apartment">Apartment</option>
+            <option value="house">House</option>
+            <option value="studio">Studio</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="listing-area">Area (m²)</label>
+          <input
+            id="listing-area"
+            type="text"
+            inputmode="decimal"
+            [formField]="fields.area"
+            aria-describedby="area-feedback"
+            [attr.aria-invalid]="invalid(fields.area()) ? 'true' : null"
+          />
+          <app-field-feedback
+            feedbackId="area-feedback"
+            hint="Use the total internal area, from 1 to 100,000 m²."
+            [errors]="messages(fields.area())"
+            [showErrors]="invalid(fields.area())"
+          />
+        </div>
+        <div class="form-field">
+          <label for="listing-bedrooms">Bedrooms</label>
+          <input
+            id="listing-bedrooms"
+            type="text"
+            inputmode="numeric"
+            [formField]="fields.bedrooms"
+            aria-describedby="bedrooms-feedback"
+            [attr.aria-invalid]="invalid(fields.bedrooms()) ? 'true' : null"
+          />
+          <app-field-feedback
+            feedbackId="bedrooms-feedback"
+            hint="Enter 0–100 bedrooms."
+            [errors]="messages(fields.bedrooms())"
+            [showErrors]="invalid(fields.bedrooms())"
+          />
+        </div>
+        <div class="form-field">
+          <label for="listing-bathrooms">Bathrooms</label>
+          <input
+            id="listing-bathrooms"
+            type="text"
+            inputmode="numeric"
+            [formField]="fields.bathrooms"
+            aria-describedby="bathrooms-feedback"
+            [attr.aria-invalid]="invalid(fields.bathrooms()) ? 'true' : null"
+          />
+          <app-field-feedback
+            feedbackId="bathrooms-feedback"
+            hint="Drafts can have 0 bathrooms. At least 1 is required for review."
+            [errors]="messages(fields.bathrooms())"
+            [showErrors]="invalid(fields.bathrooms())"
+          />
+        </div>
+        <div class="form-field">
+          <label for="listing-floor">Floor</label>
+          <input
+            id="listing-floor"
+            type="text"
+            inputmode="numeric"
+            [formField]="fields.floor"
+            aria-describedby="floor-feedback"
+            [attr.aria-invalid]="invalid(fields.floor()) ? 'true' : null"
+          />
+          <app-field-feedback
+            feedbackId="floor-feedback"
+            hint="Use 0 for ground floor. Basement floors can be negative."
+            [errors]="messages(fields.floor())"
+            [showErrors]="invalid(fields.floor())"
+          />
+        </div>
+        <div class="form-field">
+          <label for="listing-year">Year built (optional)</label>
+          <input
+            id="listing-year"
+            type="text"
+            inputmode="numeric"
+            [formField]="fields.year"
+            aria-describedby="year-feedback"
+            [attr.aria-invalid]="invalid(fields.year()) ? 'true' : null"
+          />
+          <app-field-feedback
+            feedbackId="year-feedback"
+            hint="Leave blank if unknown."
+            [errors]="messages(fields.year())"
+            [showErrors]="invalid(fields.year())"
+          />
+        </div>
+        <div class="form-field full-row">
+          <h2>Amenities (optional)</h2>
+          <p class="muted">Add each amenity separately, up to 30 in total.</p>
+          @for (amenity of fields.amenities; track $index) {
+            <div class="form-field">
+              <label [for]="'listing-amenity-' + $index">Amenity {{ $index + 1 }}</label>
+              <textarea
+                [id]="'listing-amenity-' + $index"
+                rows="2"
+                [formField]="amenity"
+                [attr.aria-describedby]="'amenity-feedback-' + $index"
+                [attr.aria-invalid]="invalid(amenity()) ? 'true' : null"
+              ></textarea>
+              <app-field-feedback
+                [feedbackId]="'amenity-feedback-' + $index"
+                [errors]="messages(amenity())"
+                [showErrors]="invalid(amenity())"
+              />
+              <button
+                nz-button
+                type="button"
+                (click)="removeAmenity($index)"
+                [attr.aria-label]="'Remove amenity ' + ($index + 1)"
+              >
+                <span>Remove amenity</span>
+              </button>
+            </div>
+          }
+          <app-field-feedback
+            feedbackId="amenities-feedback"
+            [errors]="messages(fields.amenities())"
+            [showErrors]="invalid(fields.amenities())"
+          />
+          <button
+            nz-button
+            type="button"
+            [disabled]="model().amenities.length >= 30"
+            (click)="addAmenity()"
+          >
+            <span>Add amenity</span>
+          </button>
+        </div>
+      </div>
+    </fieldset>
+    <fieldset [disabled]="busy() || archived() || reloadRequired()">
+      <legend>Address and location</legend>
+      <p class="muted">
+        Your exact pin and street address stay private. Visitors see an intentionally approximate
+        location.
+      </p>
+      <div class="form-grid">
+        <div class="form-field">
+          <label for="listing-city">City</label>
+          <input
+            id="listing-city"
+            type="text"
+            inputmode="text"
+            [formField]="fields.city"
+            aria-describedby="city-feedback"
+            [attr.aria-invalid]="invalid(fields.city()) ? 'true' : null"
+          />
+          <app-field-feedback
+            feedbackId="city-feedback"
+            hint="The property must be in Greece."
+            [errors]="messages(fields.city())"
+            [showErrors]="invalid(fields.city())"
+          />
+        </div>
+        <div class="form-field">
+          <label for="listing-neighborhood">Neighborhood (optional)</label>
+          <input
+            id="listing-neighborhood"
+            type="text"
+            inputmode="text"
+            [formField]="fields.neighborhood"
+            aria-describedby="neighborhood-feedback"
+            [attr.aria-invalid]="invalid(fields.neighborhood()) ? 'true' : null"
+          />
+          <app-field-feedback
+            feedbackId="neighborhood-feedback"
+            hint="Use the area name visitors may see."
+            [errors]="messages(fields.neighborhood())"
+            [showErrors]="invalid(fields.neighborhood())"
+          />
+        </div>
+        <div class="form-field">
+          <label for="listing-street">Street address (private, optional)</label>
+          <input
+            id="listing-street"
+            type="text"
+            inputmode="text"
+            [formField]="fields.street"
+            aria-describedby="street-feedback"
+            [attr.aria-invalid]="invalid(fields.street()) ? 'true' : null"
+          />
+          <app-field-feedback
+            feedbackId="street-feedback"
+            hint="Your street address is private. Keep it out of the public title and description."
+            [errors]="messages(fields.street())"
+            [showErrors]="invalid(fields.street())"
+          />
+        </div>
+        <div class="form-field">
+          <label for="listing-longitude">Private longitude</label>
+          <input
+            id="listing-longitude"
+            type="text"
+            inputmode="decimal"
+            [formField]="fields.longitude"
+            aria-describedby="longitude-feedback"
+            [attr.aria-invalid]="invalid(fields.longitude()) ? 'true' : null"
+          />
+          <app-field-feedback
+            feedbackId="longitude-feedback"
+            hint="Exact location: a value from −180 to 180."
+            [errors]="messages(fields.longitude())"
+            [showErrors]="invalid(fields.longitude())"
+          />
+        </div>
+        <div class="form-field">
+          <label for="listing-latitude">Private latitude</label>
+          <input
+            id="listing-latitude"
+            type="text"
+            inputmode="decimal"
+            [formField]="fields.latitude"
+            aria-describedby="latitude-feedback"
+            [attr.aria-invalid]="invalid(fields.latitude()) ? 'true' : null"
+          />
+          <app-field-feedback
+            feedbackId="latitude-feedback"
+            hint="Exact location: a value from −90 to 90."
+            [errors]="messages(fields.latitude())"
+            [showErrors]="invalid(fields.latitude())"
+          />
+        </div>
+      </div>
+      <app-location-picker
+        [longitude]="+model().longitude"
+        [latitude]="+model().latitude"
+        [publicLocation]="detail()?.property?.publicLocation ?? null"
+        [disabled]="busy() || archived() || reloadRequired()"
+        (locationChange)="locationChanged($event)"
+      />
+    </fieldset>
+    <fieldset [disabled]="busy() || archived() || reloadRequired()">
+      <legend>Listing information</legend>
+      <div class="form-grid">
+        <div class="form-field">
+          <label for="listing-transaction">Listing type</label>
+          <select id="listing-transaction" [formField]="fields.transaction">
+            <option value="rent">For rent</option>
+            <option value="sale">For sale</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="listing-title">Title (optional for drafts)</label>
+          <input
+            id="listing-title"
+            type="text"
+            inputmode="text"
+            [formField]="fields.title"
+            aria-describedby="title-feedback"
+            [attr.aria-invalid]="invalid(fields.title()) ? 'true' : null"
+          />
+          <app-field-feedback
+            feedbackId="title-feedback"
+            hint="For review, use at least 10 characters. Do not include private contact or address details."
+            [errors]="messages(fields.title())"
+            [showErrors]="invalid(fields.title())"
+          />
+        </div>
+        <div class="form-field full-row">
+          <label for="listing-description">Description (optional for drafts)</label>
+          <textarea
+            id="listing-description"
+            rows="7"
+            [formField]="fields.description"
+            aria-describedby="description-feedback"
+            [attr.aria-invalid]="invalid(fields.description()) ? 'true' : null"
+          ></textarea>
+          <app-field-feedback
+            feedbackId="description-feedback"
+            hint="For review, use at least 30 characters. Do not include private contact or address details."
+            [errors]="messages(fields.description())"
+            [showErrors]="invalid(fields.description())"
+          />
+        </div>
+        <div class="form-field">
+          <label for="listing-price">Price (EUR)</label>
+          <input
+            id="listing-price"
+            type="text"
+            inputmode="decimal"
+            [formField]="fields.price"
+            aria-describedby="price-feedback"
+            [attr.aria-invalid]="invalid(fields.price()) ? 'true' : null"
+          />
+          <app-field-feedback
+            feedbackId="price-feedback"
+            hint="Use euros and a decimal point, for example 850.50. Rent is the monthly price."
+            [errors]="messages(fields.price())"
+            [showErrors]="invalid(fields.price())"
+          />
+        </div>
+      </div>
+    </fieldset>
+    @if (error() && !reloadRequired()) {
+      <p class="error-message" role="alert">{{ error() }}</p>
+    }
+    @if (success()) {
+      <p class="notice" role="status">{{ success() }}</p>
+    }
+    <div class="save-actions">
+      <button
+        nz-button
+        nzType="primary"
+        type="submit"
+        [disabled]="busy() || archived() || reloadRequired()"
+        [nzLoading]="busy()"
+      >
+        <span>Save draft</span>
+      </button>
+      <a nz-button routerLink="/owner"><span>Back to My listings</span></a>
+      @if (busy()) {
+        <span role="status">Saving your draft…</span>
+      } @else if (dirty()) {
+        <span class="muted">You have unsaved changes.</span>
+      }
+    </div>
+  </form>
+}

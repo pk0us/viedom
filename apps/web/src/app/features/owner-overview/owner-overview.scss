@@ -1,10 +1,21 @@
 @use '../../../styles/variables' as t;
+
+:host {
+  display: block;
+}
 h1 {
   font-size: clamp(2rem, 3vw, 2.75rem);
-  margin-block: 16px;
+  margin-block: 12px;
 }
-.intro {
-  margin-bottom: 32px;
+h2 {
+  font-size: 1.25rem;
+  margin: 0 0 8px;
+}
+h3 {
+  font-size: 1.05rem;
+}
+p {
+  overflow-wrap: anywhere;
 }
 a {
   display: inline-flex;
@@ -12,11 +23,139 @@ a {
   min-height: 44px;
 }
 button {
+  min-height: 44px;
+  white-space: normal;
+}
+.page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
   margin-bottom: 24px;
 }
-.next-step {
-  margin: 24px 0 0;
-  padding-top: 24px;
-  border-top: 1px solid t.$border;
+.intro {
+  margin: 0;
+  max-width: 56ch;
+}
+.account-panel {
+  background: t.$brand-soft;
+  border: 1px solid t.$border;
+  border-radius: t.$radius;
+  padding: 20px 24px;
+  margin-bottom: 32px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+}
+.account-panel p {
+  margin: 0;
+}
+.account-panel button {
+  margin-left: auto;
+}
+.listing-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.filter-field {
+  display: grid;
+  gap: 8px;
+}
+label {
+  font-weight: 600;
+}
+select {
+  min-height: 44px;
+  min-width: 200px;
+  border: 1px solid t.$border;
+  border-radius: 6px;
+  background: t.$surface;
+  color: t.$text;
+  padding: 8px 12px;
+  font: inherit;
+}
+.listing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 24px;
+}
+.listing-card {
+  min-width: 0;
+  border: 1px solid t.$border;
+  border-radius: t.$radius;
+  background: t.$surface;
+  padding: 24px;
+}
+.listing-card h2 {
+  margin-top: 20px;
+  overflow-wrap: anywhere;
+}
+.listing-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.875rem;
   color: t.$muted;
+}
+.status-badge {
+  color: t.$brand;
+  background: t.$brand-soft;
+  padding: 4px 10px;
+  border-radius: 100px;
+  font-weight: 600;
+}
+.listing-price {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-block: 12px;
+}
+.listing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.confirmation {
+  border-top: 1px solid t.$border;
+  margin-top: 20px;
+  padding-top: 4px;
+}
+.notice {
+  padding: 16px;
+  background: t.$brand-soft;
+  border-radius: 8px;
+}
+.hold-note {
+  color: t.$danger;
+}
+.pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+@media (max-width: t.$mobile) {
+  .page-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .page-heading > a {
+    align-self: start;
+  }
+  .account-panel {
+    padding: 16px;
+  }
+  .account-panel button {
+    margin-left: 0;
+  }
+  .listing-card {
+    padding: 20px;
+  }
 }

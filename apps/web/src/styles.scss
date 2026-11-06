@@ -91,3 +91,16 @@ a:hover {
     transition: none !important;
   }
 }
+.approximate-location-marker {
+  width: 22px;
+  height: 22px;
+  border: 3px solid #0050b3;
+  border-radius: 50%;
+  background: #eaf2fc;
+  pointer-events: none;
+}
+
+app-location-picker .maplibregl-ctrl-group button {
+  width: 44px;
+  height: 44px;
+}

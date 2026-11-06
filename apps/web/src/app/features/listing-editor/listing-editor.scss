@@ -1,0 +1,117 @@
+@use '../../../styles/variables' as t;
+
+:host {
+  display: block;
+  max-width: 960px;
+}
+h1 {
+  margin: 12px 0 16px;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+}
+p {
+  overflow-wrap: anywhere;
+}
+.back-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.intro,
+.muted {
+  color: t.$muted;
+}
+.notice {
+  padding: 16px;
+  background: t.$brand-soft;
+  border-radius: 8px;
+}
+.conflict {
+  padding: 20px;
+  border: 2px solid t.$danger;
+  border-radius: 8px;
+  margin: 24px 0;
+}
+form {
+  display: grid;
+  gap: 24px;
+}
+fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: clamp(16px, 3vw, 28px);
+  border: 1px solid t.$border;
+  border-radius: t.$radius;
+  background: t.$surface;
+}
+legend {
+  padding: 0 8px;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.form-grid {
+  display: grid;
+  gap: 24px;
+}
+.form-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  align-content: start;
+}
+label {
+  font-weight: 600;
+}
+input,
+select,
+textarea {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  font: inherit;
+  color: t.$text;
+  background: t.$surface;
+  border: 1px solid t.$muted;
+  border-radius: 6px;
+}
+textarea {
+  resize: vertical;
+}
+input[aria-invalid='true'],
+textarea[aria-invalid='true'] {
+  border-color: t.$danger;
+}
+fieldset:disabled input,
+fieldset:disabled select,
+fieldset:disabled textarea {
+  background: t.$canvas;
+}
+app-location-picker {
+  display: block;
+  margin-top: 24px;
+}
+.error-message {
+  color: t.$danger;
+  border-left: 3px solid t.$danger;
+  padding: 12px;
+}
+.save-actions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+button[nz-button],
+a[nz-button] {
+  white-space: normal;
+}
+@media (min-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .full-row {
+    grid-column: 1 / -1;
+  }
+}

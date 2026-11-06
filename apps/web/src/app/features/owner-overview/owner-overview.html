@@ -1,39 +1,187 @@
 <p class="eyebrow">A space for your property</p>
-<h1 tabindex="-1">Owner workspace</h1>
+<div class="page-heading">
+  <div>
+    <h1 tabindex="-1">My listings</h1>
+    @if (session.user(); as user) {
+      <p class="intro muted">Welcome, {{ user.firstName }}.</p>
+      <p class="muted">Manage your property advertisements here.</p>
+    }
+  </div>
+  <a nz-button nzType="primary" routerLink="/owner/listings/new"><span>Create a listing</span></a>
+</div>
 @if (session.user(); as user) {
-  <p class="intro muted">Welcome, {{ user.firstName }}.</p>
-  @if (!user.emailVerified) {
-    <section class="panel" aria-label="Email verification">
-      <h2>Verify your email</h2>
-      <p>Confirm your email before submitting a property for review.</p>
-      <a routerLink="/auth/verification">Request a verification email</a>
+  <section class="account-panel" aria-label="Account status">
+    @if (!user.emailVerified) {
+      <div>
+        <h2>Verify your email</h2>
+        <p>You can save drafts now. Verify your email before submitting a property for review.</p>
+        <a routerLink="/auth/verification">Request a verification email</a>
+      </div>
+    } @else {
+      <p role="status">Your email is verified.</p>
+    }
+    <button
+      nz-button
+      type="button"
+      [disabled]="checking()"
+      [nzLoading]="checking()"
+      (click)="checkAccount()"
+    >
+      <span>Refresh account status</span>
+    </button>
+    @if (checking()) {
+      <p role="status">Checking account…</p>
+    }
+    @if (error()) {
+      <p role="alert">Account status could not be loaded. Please try again.</p>
+    }
+  </section>
+  <div class="listing-toolbar">
+    <div class="filter-field">
+      <label for="listing-status">Listing status</label>
+      <select id="listing-status" [value]="status()" [disabled]="busy()" (change)="filter($event)">
+        <option value="">All statuses</option>
+        @for (option of statuses; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+    </div>
+    <button nz-button type="button" [disabled]="loading() || busy()" (click)="load(true)">
+      <span>Reload listings</span>
+    </button>
+  </div>
+  @if (notice()) {
+    <p class="notice" [attr.role]="reloadRequired() ? 'alert' : 'status'">{{ notice() }}</p>
+  }
+  @if (listError()) {
+    <app-ui-state
+      kind="error"
+      heading="Listings unavailable"
+      [description]="listError()"
+      retryLabel="Try again"
+      (retry)="load(items().length === 0)"
+    />
+  }
+  @if (loading() && items().length === 0) {
+    <app-ui-state
+      kind="loading"
+      heading="Loading your listings"
+      description="Fetching your latest drafts and advertisements."
+    />
+  } @else if (!loading() && !listError() && items().length === 0) {
+    <section class="panel">
+      <app-ui-state
+        kind="empty"
+        heading="No listings here yet"
+        [description]="
+          status()
+            ? 'Choose another status or create a new listing.'
+            : 'Create your first draft. You can save your progress and return to it later.'
+        "
+      />
     </section>
-  } @else {
-    <p role="status">Your email is verified.</p>
   }
-  <button
-    nz-button
-    type="button"
-    [disabled]="checking()"
-    [nzLoading]="checking()"
-    (click)="checkAccount()"
-  >
-    <span>Refresh account status</span>
-  </button>
-  @if (checking()) {
-    <p role="status">Checking account…</p>
-  }
-  @if (error()) {
-    <p role="alert">Account status could not be loaded. Please try again.</p>
+  <div class="listing-grid" [attr.aria-busy]="loading()">
+    @for (listing of items(); track listing.id) {
+      <article class="listing-card" [attr.aria-labelledby]="'listing-' + listing.id">
+        <div class="listing-meta">
+          <span class="status-badge">{{ statusLabel(listing.status) }}</span
+          ><span>{{ listing.transactionType === 'rent' ? 'For rent' : 'For sale' }}</span>
+        </div>
+        <h2 [id]="'listing-' + listing.id">{{ listing.title || 'Untitled draft' }}</h2>
+        <p class="listing-price">
+          {{ listing.priceMinor / 100 | price
+          }}{{ listing.transactionType === 'rent' ? ' / month' : '' }}
+        </p>
+        @if (listing.moderationHold) {
+          <p class="hold-note">This listing is on a moderation hold.</p>
+        }
+        @if (listing.status === 'draft') {
+          <p class="muted">
+            Private draft. Processed photos and review are required before publication.
+          </p>
+        }
+        @if (listing.status === 'paused') {
+          <p class="muted">Paused listings need review before publication again.</p>
+        }
+        <div class="listing-actions">
+          <a nz-button [routerLink]="['/owner/listings', listing.id]"
+            ><span>{{ listing.status === 'archived' ? 'View listing' : 'Edit listing' }}</span></a
+          >
+          @if (listing.status === 'published') {
+            <button
+              nz-button
+              type="button"
+              [id]="'pause-' + listing.id"
+              [disabled]="busy() || loading() || reloadRequired()"
+              (click)="confirm(listing, 'pause')"
+            >
+              <span>Pause</span>
+            </button>
+          }
+          @if (listing.status !== 'archived') {
+            <button
+              nz-button
+              nzDanger
+              type="button"
+              [id]="'archive-' + listing.id"
+              [disabled]="busy() || loading() || reloadRequired()"
+              (click)="confirm(listing, 'archive')"
+            >
+              <span>Archive</span>
+            </button>
+          }
+        </div>
+        @if (confirmation(); as pending) {
+          @if (pending.listing.id === listing.id) {
+            <section
+              class="confirmation"
+              [attr.aria-label]="pending.action === 'archive' ? 'Confirm archive' : 'Confirm pause'"
+            >
+              <h3>
+                {{ pending.action === 'archive' ? 'Archive this listing?' : 'Pause this listing?' }}
+              </h3>
+              <p>
+                {{
+                  pending.action === 'archive'
+                    ? 'Archiving is permanent. This listing cannot be edited or restored.'
+                    : 'The listing will leave public search. Publishing it again requires review.'
+                }}
+              </p>
+              <div class="listing-actions">
+                <button
+                  nz-button
+                  nzType="primary"
+                  type="button"
+                  [disabled]="busy()"
+                  [nzLoading]="busy()"
+                  (click)="applyAction()"
+                >
+                  <span>{{
+                    pending.action === 'archive' ? 'Confirm archive' : 'Confirm pause'
+                  }}</span>
+                </button>
+                <button nz-button type="button" [disabled]="busy()" (click)="cancel()">
+                  <span>Cancel</span>
+                </button>
+              </div>
+            </section>
+          }
+        }
+      </article>
+    }
+  </div>
+  @if (nextCursor()) {
+    <div class="pagination">
+      <button
+        nz-button
+        type="button"
+        [disabled]="loading() || busy()"
+        [nzLoading]="loading()"
+        (click)="load()"
+      >
+        <span>Load more listings</span>
+      </button>
+    </div>
   }
 }
-<section class="panel">
-  <app-ui-state
-    kind="empty"
-    heading="Your property journey starts here."
-    description="You are signed in. Property and listing management will be available here soon."
-  />
-  <p class="next-step">
-    Your account is ready. This workspace does not yet contain property listings.
-  </p>
-</section>

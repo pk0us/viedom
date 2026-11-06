@@ -1,0 +1,27 @@
+<div class="location-map" #map></div>
+@if (loading()) {
+  <p role="status">Loading location map… Coordinate entry is available below.</p>
+}
+@if (failed()) {
+  <p role="status">The map could not load. You can still enter and save coordinates below.</p>
+  <button nz-button type="button" (click)="initialize()"><span>Retry map</span></button>
+}
+<p class="map-help">
+  The red pin marks your private location. Click the map or drag the pin to move it. Coordinate
+  fields provide the same location entry with a keyboard.
+</p>
+@if (publicLocation(); as point) {
+  <p class="public-point">
+    <span class="public-key" aria-hidden="true"></span>
+    Saved approximate public location: {{ point.coordinates[1] }}, {{ point.coordinates[0] }}.
+    Saving a location change recalculates this point on the server.
+  </p>
+} @else {
+  <p>
+    The approximate public location will appear after saving. Your street and exact pin stay
+    private.
+  </p>
+}
+@if (ready()) {
+  <button nz-button type="button" (click)="center()"><span>Center on private pin</span></button>
+}

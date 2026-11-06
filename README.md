@@ -16,7 +16,7 @@ pnpm dev
 
 `setup:local` creates a root `.env` if missing, generates local secrets and appends missing authentication/mail defaults while preserving every existing value. Keep it private. The applications run on the host; authenticated MongoDB and Mailpit run in Docker with persistent volumes. Email/password authentication, verification and recovery work without a cloud account.
 
-Open [the public shell](http://localhost:4200), [create an account](http://localhost:4200/auth/register), [sign in](http://localhost:4200/auth/login) or check [service status](http://localhost:4200/health). The [owner workspace](http://localhost:4200/owner) requires a session; property management remains a preview. The API uses `http://localhost:3000/api`; its health endpoints are `/api/health` and `/api/health/ready`.
+Open [the public shell](http://localhost:4200), [create an account](http://localhost:4200/auth/register), [sign in](http://localhost:4200/auth/login) or check [service status](http://localhost:4200/health). The [owner workspace](http://localhost:4200/owner) requires a session and provides listing drafts, status filters, pagination, pause and archive. The API uses `http://localhost:3000/api`; its health endpoints are `/api/health` and `/api/health/ready`.
 
 Use `.env.example` for available settings. To change ports, update `WEB_PORT`, `API_PORT`, `WEB_ORIGIN`, `PUBLIC_API_BASE_URL` and `SSR_API_BASE_URL` consistently. Preserve the existing database credentials; editing `.env` does not rotate stored MongoDB users. See [configuration details](docs/local-development-design.md).
 
@@ -33,6 +33,7 @@ pnpm smoke:local
 pnpm smoke:mail
 pnpm smoke:auth
 pnpm smoke:listings
+pnpm smoke:owner
 ```
 
 The local smoke check runs persistence and authentication integration tests, verifies credentialed browser cookies, builds the applications, verifies authenticated database access and restart persistence, then checks production SSR, browser/API recovery, responsive shells, keyboard navigation and axe. On Windows it uses installed Chrome by default. Screenshots and results are written under ignored `test-results/`.
@@ -50,3 +51,9 @@ Registration requests verification automatically and offers a resend. Open the n
 Session refresh is coordinated across requests and tabs using Web Locks. Use a current browser on localhost or HTTPS. Access and CSRF tokens never enter browser storage. `pnpm smoke:auth` builds the frontend and exercises registration, Mailpit verification/recovery, protected navigation, reload/expiry, simultaneous tabs, Google callback with mocked provider transport, logout and responsive accessibility against the separate test database. It starts/stops its own app processes; stop `pnpm dev` first. Only its synthetic accounts and exact captured messages are removed. `pnpm smoke:local` includes these journeys; `pnpm smoke:mail` retains the focused API/SMTP check. See [authentication conventions](docs/authentication.md) for API requests and failure/retry behavior.
 
 See [UI foundations](docs/ui-foundations.md) for styling, shared feedback, formatting and form conventions, and [implementation status](docs/implementation-status.md) for phase progress.
+
+Create a listing from My listings, enter property information, a private location and a rent/sale price in euros, then save and reopen it. Saving reviewed content returns it to draft; changing canonical property information withdraws every non-archived advertisement for that property. Conflicts require an explicit reload, and interrupted creations require checking existing listings before trying again. Leaving unsaved edits prompts for confirmation. Drafts without processed photos cannot be submitted or published; photo management is not available yet.
+
+The browser loads MapLibre only inside the editor. `PUBLIC_MAP_STYLE_URL` selects a browser-safe HTTPS map style and defaults to OpenFreeMap Liberty; existing environment files need no change. Configure an appropriate licensed provider for deployment. The red pin is private, and the blue circle marks the saved server-derived approximate public location. Coordinate entry remains available when tiles or WebGL fail. The style provider receives ordinary map viewport requests, never listing text, credentials or the private street address. See [OpenFreeMap](https://openfreemap.org/) for provider details.
+
+`pnpm smoke:owner` builds the frontend and tests draft persistence, conflicts, owner isolation, pagination/actions, unsaved changes, map fallback and responsive accessibility with Chrome and the separate local test database. Like the auth smoke, it owns the application ports and removes only its synthetic records. `pnpm smoke:local` and `pnpm smoke:ui` include it.
