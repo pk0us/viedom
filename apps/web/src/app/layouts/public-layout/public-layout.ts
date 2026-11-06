@@ -3,6 +3,7 @@ import type { ElementRef } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
+import { AuthSession } from '../../core/auth/auth-session';
 
 @Component({
   imports: [RouterLink, RouterLinkActive, RouterOutlet],
@@ -13,6 +14,7 @@ import { filter } from 'rxjs';
   templateUrl: './public-layout.html'
 })
 export class PublicLayout {
+  readonly session = inject(AuthSession);
   readonly menuOpen = signal(false);
   private readonly menuButton = viewChild<ElementRef<HTMLButtonElement>>('menuButton');
 

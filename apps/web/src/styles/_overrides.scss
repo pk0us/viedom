@@ -10,10 +10,20 @@
 }
 .ant-btn-primary,
 .ant-btn-primary:hover,
+.ant-btn-primary:focus,
+.ant-btn-primary:active,
 .ant-btn-primary:focus-visible {
   color: t.$surface;
   background: t.$brand;
   border-color: t.$brand;
+}
+.ant-btn:not(.ant-btn-primary):not([disabled]) {
+  &:hover,
+  &:focus,
+  &:active {
+    color: t.$brand;
+    border-color: t.$brand;
+  }
 }
 .ant-btn:focus-visible {
   outline: 3px solid t.$brand;

@@ -1,13 +1,39 @@
 <p class="eyebrow">A space for your property</p>
 <h1 tabindex="-1">Owner workspace</h1>
-<p class="intro muted">Welcome to a preview of your future workspace.</p>
+@if (session.user(); as user) {
+  <p class="intro muted">Welcome, {{ user.firstName }}.</p>
+  @if (!user.emailVerified) {
+    <section class="panel" aria-label="Email verification">
+      <h2>Verify your email</h2>
+      <p>Confirm your email before submitting a property for review.</p>
+      <a routerLink="/auth/verification">Request a verification email</a>
+    </section>
+  } @else {
+    <p role="status">Your email is verified.</p>
+  }
+  <button
+    nz-button
+    type="button"
+    [disabled]="checking()"
+    [nzLoading]="checking()"
+    (click)="checkAccount()"
+  >
+    <span>Refresh account status</span>
+  </button>
+  @if (checking()) {
+    <p role="status">Checking account…</p>
+  }
+  @if (error()) {
+    <p role="alert">Account status could not be loaded. Please try again.</p>
+  }
+}
 <section class="panel">
   <app-ui-state
     kind="empty"
     heading="Your property journey starts here."
-    description="Account access and listing management are not available yet. This preview contains no personal data or property listings."
+    description="You are signed in. Property and listing management will be available here soon."
   />
   <p class="next-step">
-    Once owner accounts are available, you'll be able to manage your properties here.
+    Your account is ready. This workspace does not yet contain property listings.
   </p>
 </section>

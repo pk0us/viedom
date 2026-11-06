@@ -25,6 +25,11 @@
       <a routerLink="/owner" class="workspace-link"
         >Owner workspace <span aria-hidden="true">↗</span></a
       >
+      @if (!session.user()) {
+        <a routerLink="/auth/login" routerLinkActive="active" ariaCurrentWhenActive="page"
+          >Log in</a
+        >
+      }
     </nav>
   </div>
 </header>

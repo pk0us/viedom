@@ -27,6 +27,11 @@ export async function checkShell(page, origin, apiBaseUrl) {
         assert.equal(response.headers()['x-robots-tag'], 'noindex, nofollow');
       }
       await expect(page.locator('h1')).toBeVisible();
+      if (path.startsWith('/owner')) {
+        await expect(page).toHaveURL(`${origin}/auth/login?returnUrl=${encodeURIComponent(path)}`);
+        await expect(page.getByRole('heading', { level: 1 })).toHaveText('Welcome back');
+        await expect(page.getByRole('navigation', { name: 'Owner navigation' })).toHaveCount(0);
+      }
       if (path === '/')
         await expect(page.getByRole('link', { name: 'Explore the owner workspace' })).toBeVisible();
       await expect(page.getByRole('navigation', { name: /admin/i })).toHaveCount(0);
@@ -44,11 +49,11 @@ export async function checkShell(page, origin, apiBaseUrl) {
       );
       if (path === '/' || path === '/owner') {
         await page.screenshot({
-          path: resolve(directory, `${path === '/' ? 'public' : 'owner'}-${width}.png`),
+          path: resolve(directory, `${path === '/' ? 'public' : 'login'}-${width}.png`),
           fullPage: true
         });
       }
-      if (path.startsWith('/admin') || path.includes('missing-page'))
+      if (path.startsWith('/admin') || path === '/missing-page')
         await expect(page.getByRole('heading', { level: 1 })).toHaveText(
           "Let's find your way back."
         );
@@ -86,19 +91,22 @@ export async function checkShell(page, origin, apiBaseUrl) {
   await expect(page.getByRole('link', { name: 'Owner workspace', exact: true })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Owner workspace', exact: true })
+    page.getByRole('heading', { level: 1, name: 'Welcome back', exact: true })
   ).toBeFocused();
   await page.getByRole('link', { name: 'Skip to content' }).focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('main')).toBeFocused();
-  await expect(page).toHaveURL(`${origin}/owner`);
-  await page.getByRole('link', { name: 'Back to home' }).click();
+  await expect(page).toHaveURL(`${origin}/auth/login?returnUrl=%2Fowner`);
+  await expect(menu).toHaveAttribute('aria-expanded', 'false');
+  await menu.click();
+  await page.getByRole('link', { name: 'Home', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1 })).toBeFocused();
   await expect(menu).toHaveAttribute('aria-expanded', 'false');
   // Desktop navigation and browser history keep focus and active state coherent.
   await page.setViewportSize({ width: 1440, height: 960 });
   await page.getByRole('link', { name: 'Owner workspace', exact: true }).click();
-  await expect(page.getByRole('link', { name: 'Overview' })).toHaveAttribute(
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Welcome back');
+  await expect(page.getByRole('link', { name: 'Log in', exact: true })).toHaveAttribute(
     'aria-current',
     'page'
   );

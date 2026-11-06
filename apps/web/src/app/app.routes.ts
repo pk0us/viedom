@@ -1,10 +1,13 @@
 import type { Routes } from '@angular/router';
+import { sessionGuard } from './core/auth/auth-guards';
 
 export const routes: Routes = [
   // Reserved and fail-closed until server authorization and admin UI exist.
   { path: 'admin', canMatch: [() => false], children: [] },
   {
     path: 'owner',
+    canActivate: [sessionGuard],
+    canActivateChild: [sessionGuard],
     data: { noindex: true },
     loadComponent: () =>
       import('./layouts/dashboard-layout/dashboard-layout').then((m) => m.DashboardLayout),
@@ -15,6 +18,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./layouts/public-layout/public-layout').then((m) => m.PublicLayout),
     children: [
+      {
+        path: 'auth',
+        data: { noindex: true },
+        loadChildren: () => import('./features/auth/auth.routes').then((m) => m.authRoutes)
+      },
       {
         path: '',
         pathMatch: 'full',

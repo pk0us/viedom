@@ -1,0 +1,103 @@
+<section class="auth-card">
+  <p class="eyebrow">Account access</p>
+  <h1 tabindex="-1">{{ verification ? 'Verify your email' : 'Reset your password' }}</h1>
+  @if (complete()) {
+    <p class="notice" role="status">
+      {{
+        verification
+          ? 'Your email is verified.'
+          : 'Your password has been reset. Sign in again with your new password.'
+      }}
+    </p>
+    <a class="text-link" [routerLink]="verification ? '/owner' : '/auth/login'">{{
+      verification ? 'Continue to your workspace' : 'Sign in'
+    }}</a>
+  } @else if (!available()) {
+    <p>
+      This page needs a valid link from your email. Links are removed from the address bar for your
+      privacy; refreshing this page requires opening the email link again.
+    </p>
+    <a
+      class="text-link"
+      [routerLink]="verification ? '/auth/verification' : '/auth/forgot-password'"
+      >Request a new email</a
+    >
+  } @else {
+    @if (verification) {
+      <p class="intro">
+        Confirm below to verify your email address. Opening this page does not verify your email.
+      </p>
+      <button
+        nz-button
+        nzType="primary"
+        type="button"
+        [disabled]="busy()"
+        [nzLoading]="busy()"
+        (click)="confirm()"
+      >
+        <span>Confirm email verification</span>
+      </button>
+    } @else {
+      <p class="intro">Choose a new password. This will sign you out on all devices.</p>
+      <form (submit)="reset($event)" novalidate>
+        <div class="form-field">
+          <label for="password">New password (required)</label>
+          <input
+            id="password"
+            type="password"
+            autocomplete="new-password"
+            [formField]="fields.password"
+            aria-describedby="password-feedback"
+            [attr.aria-invalid]="invalid(fields.password()) ? 'true' : null"
+          />
+          <app-field-feedback
+            feedbackId="password-feedback"
+            hint="Use 12–128 characters. Spaces and letter case are preserved."
+            [errors]="messages(fields.password())"
+            [showErrors]="invalid(fields.password())"
+          />
+        </div>
+        <div class="form-field">
+          <label for="confirmation">Confirm new password (required)</label>
+          <input
+            id="confirmation"
+            type="password"
+            autocomplete="new-password"
+            [formField]="fields.confirmation"
+            aria-describedby="confirmation-feedback"
+            [attr.aria-invalid]="invalid(fields.confirmation()) ? 'true' : null"
+          />
+          <app-field-feedback
+            feedbackId="confirmation-feedback"
+            [errors]="messages(fields.confirmation())"
+            [showErrors]="invalid(fields.confirmation())"
+          />
+        </div>
+        <button
+          class="full-width"
+          nz-button
+          nzType="primary"
+          type="submit"
+          [disabled]="busy()"
+          [nzLoading]="busy()"
+        >
+          <span>Reset password</span>
+        </button>
+      </form>
+    }
+    <p class="privacy-note">
+      For your privacy, refreshing this page requires opening the email link again.
+    </p>
+    <a
+      class="text-link"
+      [routerLink]="verification ? '/auth/verification' : '/auth/forgot-password'"
+      >Request a new email</a
+    >
+  }
+  @if (busy()) {
+    <p role="status">Please wait…</p>
+  }
+  @if (error()) {
+    <p class="error-message" role="alert">{{ error() }}</p>
+  }
+</section>

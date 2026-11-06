@@ -1,0 +1,13 @@
+<section class="auth-card">
+  <p class="eyebrow">Account access</p>
+  <h1 tabindex="-1">Completing sign in</h1>
+  @if (failed()) {
+    <p class="error-message" role="alert">
+      We could not complete Google sign in. Please try again. If you already have a password
+      account, sign in with that account; accounts are not linked automatically.
+    </p>
+    <a class="text-link" routerLink="/auth/login">Back to sign in</a>
+  } @else {
+    <p role="status">Restoring your secure session…</p>
+  }
+</section>

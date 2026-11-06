@@ -36,11 +36,11 @@ app.use(
   })
 );
 
-// These boundaries will hold private features later. Their previews are never cacheable/indexable.
 app.use((req, res, next) => {
-  if (/^\/(owner|admin)(\/|$)/.test(req.path)) {
+  if (/^\/(owner|admin|auth)(\/|$)/.test(req.path)) {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    res.setHeader('Referrer-Policy', 'no-referrer');
   }
   next();
 });

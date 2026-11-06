@@ -47,9 +47,9 @@ export class App {
           afterNextRender(
             () => {
               const fragment = this.router.parseUrl(event.urlAfterRedirects).fragment;
-              const target = fragment
-                ? this.document.getElementById(fragment)
-                : this.document.querySelector<HTMLElement>('#main-content h1');
+              const target =
+                (fragment ? this.document.getElementById(fragment) : null) ??
+                this.document.querySelector<HTMLElement>('#main-content h1');
               target?.focus();
             },
             { injector: this.injector }

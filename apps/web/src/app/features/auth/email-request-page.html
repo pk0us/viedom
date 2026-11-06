@@ -1,0 +1,56 @@
+<section class="auth-card">
+  <p class="eyebrow">Account access</p>
+  <h1 tabindex="-1">{{ verification ? 'Verify your email' : 'Forgot your password?' }}</h1>
+  <p class="intro">
+    {{
+      verification
+        ? 'Request a fresh verification link for your email address. Use the link in the newest email.'
+        : 'Enter your account email and we will send a password reset link if it is eligible.'
+    }}
+  </p>
+  @if (!verification) {
+    <p>Use Google to sign in if you created your account with Google.</p>
+  }
+  <form (submit)="save($event)" novalidate>
+    <div class="form-field">
+      <label for="email">Email (required)</label>
+      <input
+        id="email"
+        type="email"
+        autocomplete="email"
+        autocapitalize="none"
+        spellcheck="false"
+        [formField]="fields.email"
+        aria-describedby="email-feedback"
+        [attr.aria-invalid]="invalid(fields.email()) ? 'true' : null"
+      />
+      <app-field-feedback
+        feedbackId="email-feedback"
+        [errors]="messages(fields.email())"
+        [showErrors]="invalid(fields.email())"
+      />
+    </div>
+    <button
+      class="full-width"
+      nz-button
+      nzType="primary"
+      type="submit"
+      [disabled]="busy()"
+      [nzLoading]="busy()"
+    >
+      <span>{{ verification ? 'Send verification email' : 'Send reset link' }}</span>
+    </button>
+  </form>
+  @if (busy()) {
+    <p role="status">Requesting your email…</p>
+  }
+  @if (sent()) {
+    <p class="notice" role="status">
+      If the account is eligible, an email will be sent. Please check your inbox.
+    </p>
+  }
+  @if (error()) {
+    <p class="error-message" role="alert">{{ error() }}</p>
+  }
+  <a class="text-link" routerLink="/auth/login">Back to sign in</a>
+</section>

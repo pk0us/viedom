@@ -16,7 +16,7 @@ pnpm dev
 
 `setup:local` creates a root `.env` if missing, generates local secrets and appends missing authentication/mail defaults while preserving every existing value. Keep it private. The applications run on the host; authenticated MongoDB and Mailpit run in Docker with persistent volumes. Email/password authentication, verification and recovery work without a cloud account.
 
-Open [the public shell](http://localhost:4200), [owner workspace preview](http://localhost:4200/owner) or [service status](http://localhost:4200/health). The API uses `http://localhost:3000/api`; its health endpoints are `/api/health` and `/api/health/ready`. The previews contain no live listings or account data.
+Open [the public shell](http://localhost:4200), [create an account](http://localhost:4200/auth/register), [sign in](http://localhost:4200/auth/login) or check [service status](http://localhost:4200/health). The [owner workspace](http://localhost:4200/owner) requires a session; property management remains a preview. The API uses `http://localhost:3000/api`; its health endpoints are `/api/health` and `/api/health/ready`.
 
 Use `.env.example` for available settings. To change ports, update `WEB_PORT`, `API_PORT`, `WEB_ORIGIN`, `PUBLIC_API_BASE_URL` and `SSR_API_BASE_URL` consistently. Preserve the existing database credentials; editing `.env` does not rotate stored MongoDB users. See [configuration details](docs/local-development-design.md).
 
@@ -31,6 +31,7 @@ pnpm test:db
 pnpm format:check
 pnpm smoke:local
 pnpm smoke:mail
+pnpm smoke:auth
 ```
 
 The local smoke check runs persistence and authentication integration tests, verifies credentialed browser cookies, builds the applications, verifies authenticated database access and restart persistence, then checks production SSR, browser/API recovery, responsive shells, keyboard navigation and axe. On Windows it uses installed Chrome by default. Screenshots and results are written under ignored `test-results/`.
@@ -39,10 +40,12 @@ The local smoke check runs persistence and authentication integration tests, ver
 
 After `pnpm build` and `pnpm infra:up`, use `pnpm smoke:ui` to repeat the browser checks against the existing build without rebuilding or restarting MongoDB. Both smoke commands start and stop their own application processes; stop other app instances on the configured ports first.
 
-The Phase 05 authentication API supports email/password login and Google sign-in using Passport Google OAuth 2.0 and JWT strategies. Browser authentication screens arrive in Phase 07. To enable Google, create a Google OAuth **Web application** client and put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the root `.env`. Register the exact callback `http://localhost:3000/api/auth/google/callback` (adjust with the browser API port/origin). Leave both values blank to disable Google locally. See [authentication contracts and setup](docs/authentication.md); existing fixtures intentionally cannot log in.
+Authentication supports email/password and Google sign-in using Passport Google OAuth 2.0 and JWT strategies. To enable Google, create a Google OAuth **Web application** client and put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the root `.env`. Register the exact callback `http://localhost:3000/api/auth/google/callback` (adjust with the browser API port/origin). Leave both values blank to disable Google locally. See [authentication contracts and setup](docs/authentication.md); existing fixtures intentionally cannot log in.
 
 Phase 06 adds email verification and password recovery APIs. Open [Mailpit](http://localhost:8025) to inspect local messages; the host API sends SMTP to `127.0.0.1:1025`. Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_FROM`, optional `SMTP_USER`/`SMTP_PASSWORD`, and `MAIL_UI_PORT` in root `.env`. Local defaults use unauthenticated loopback capture; production requires an authenticated SMTP provider with TLS. Changing `SMTP_PORT` or `MAIL_UI_PORT` updates Compose and the API together. Normal shutdown retains captured messages.
 
-After registration, call `POST /api/auth/verification/request` with `{ email }`; recovery starts at `POST /api/auth/forgot-password`. Both require the usual Origin/CSRF headers and return a generic 202. Messages arrive through the API's durable mail worker. Links target `/auth/verify-email#token=...` and `/auth/reset-password#token=...`; those browser pages arrive in Phase 07. For API-only testing now, `pnpm smoke:mail` reads synthetic links from Mailpit and confirms both flows, then deletes only its own test mail and records. `pnpm smoke:local` includes the same test. See [Phase 06 contracts](docs/authentication.md#email-verification-and-password-recovery--phase-06) for manual PowerShell requests and failure/retry behavior.
+Registration requests verification automatically and offers a resend. Open the newest link in Mailpit and explicitly confirm your email. Recovery starts at [forgot password](http://localhost:4200/auth/forgot-password). The browser removes email tokens from the address bar immediately, keeps them only in memory and requires confirmation before consuming them. Reloading a link page requires reopening the email. After reset, sign in with the new password; every prior session is revoked. Google-only accounts continue to use Google.
+
+Session refresh is coordinated across requests and tabs using Web Locks. Use a current browser on localhost or HTTPS. Access and CSRF tokens never enter browser storage. `pnpm smoke:auth` builds the frontend and exercises registration, Mailpit verification/recovery, protected navigation, reload/expiry, simultaneous tabs, Google callback with mocked provider transport, logout and responsive accessibility against the separate test database. It starts/stops its own app processes; stop `pnpm dev` first. Only its synthetic accounts and exact captured messages are removed. `pnpm smoke:local` includes these journeys; `pnpm smoke:mail` retains the focused API/SMTP check. See [authentication conventions](docs/authentication.md) for API requests and failure/retry behavior.
 
 See [UI foundations](docs/ui-foundations.md) for styling, shared feedback, formatting and form conventions, and [implementation status](docs/implementation-status.md) for phase progress.

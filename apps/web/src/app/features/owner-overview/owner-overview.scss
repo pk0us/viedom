@@ -6,6 +6,14 @@ h1 {
 .intro {
   margin-bottom: 32px;
 }
+a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+button {
+  margin-bottom: 24px;
+}
 .next-step {
   margin: 24px 0 0;
   padding-top: 24px;
