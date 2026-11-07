@@ -89,6 +89,17 @@
           ><span>{{ listing.transactionType === 'rent' ? 'For rent' : 'For sale' }}</span>
         </div>
         <h2 [id]="'listing-' + listing.id">{{ listing.title || 'Untitled draft' }}</h2>
+        @if (listing.status === 'rejected') {
+          <section aria-label="Review feedback" class="notice">
+            <h3>Changes requested</h3>
+            <p>
+              {{
+                listing.rejectionReason ||
+                  'Open your listing to review and update it before submitting again.'
+              }}
+            </p>
+          </section>
+        }
         <p class="listing-price">
           {{ listing.priceMinor / 100 | price
           }}{{ listing.transactionType === 'rent' ? ' / month' : '' }}

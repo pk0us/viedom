@@ -128,4 +128,19 @@ describe('owner listings dashboard', () => {
     expect(component.items()).toEqual([]);
     expect(fixture.nativeElement.querySelector('article')).toBeNull();
   });
+
+  it('renders rejection feedback as escaped owner-visible text', async () => {
+    const { component, fixture } = await create();
+    component.items.set([
+      {
+        ...listing('rejected', 'rejected'),
+        rejectionReason: '<script>private feedback</script> Remove the address from your photos.'
+      }
+    ]);
+    await fixture.whenStable();
+    expect(
+      fixture.nativeElement.querySelector('[aria-label="Review feedback"]')?.textContent
+    ).toContain('<script>private feedback</script> Remove the address from your photos.');
+    expect(fixture.nativeElement.querySelector('script')).toBeNull();
+  });
 });

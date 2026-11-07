@@ -71,7 +71,7 @@
                 nz-button
                 type="button"
                 [disabled]="locked() || first"
-                [attr.aria-label]="'Move photo ' + (index + 1) + ' earlier'"
+                [attr.aria-label]="'Move earlier: photo ' + (index + 1)"
                 (click)="move(photo.id, -1)"
               >
                 <span>Move earlier</span>
@@ -80,7 +80,7 @@
                 nz-button
                 type="button"
                 [disabled]="locked() || last"
-                [attr.aria-label]="'Move photo ' + (index + 1) + ' later'"
+                [attr.aria-label]="'Move later: photo ' + (index + 1)"
                 (click)="move(photo.id, 1)"
               >
                 <span>Move later</span>
@@ -90,7 +90,7 @@
                   nz-button
                   type="button"
                   [disabled]="locked() || value.coverMediaId === photo.id"
-                  [attr.aria-label]="'Use photo ' + (index + 1) + ' as cover'"
+                  [attr.aria-label]="'Use as cover: photo ' + (index + 1)"
                   (click)="cover(photo.id)"
                 >
                   <span>Use as cover</span>
@@ -112,7 +112,7 @@
                     nz-button
                     type="button"
                     [disabled]="locked()"
-                    [attr.aria-label]="'Retry photo ' + (index + 1)"
+                    [attr.aria-label]="'Retry upload: photo ' + (index + 1)"
                     (click)="retry(photo.id)"
                   >
                     <span>Retry upload</span>

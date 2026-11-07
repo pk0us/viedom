@@ -19,6 +19,7 @@ import { PersistenceConflict, propertySnapshot } from '../database/snapshots.js'
 import { ownerProperty } from '../properties/properties.service.js';
 import { ListingsPolicy, invalidateReview, listingSlug } from './listings.policy.js';
 import { CreateListingDto, OwnerListingsQuery, UpdateListingDto } from './listings.dto.js';
+import { ModerationDecision } from '../admin/moderation.entities.js';
 
 export function ownerListing(listing: Listing): OwnerListingSummary {
   return {
@@ -34,6 +35,7 @@ export function ownerListing(listing: Listing): OwnerListingSummary {
     status: listing.status,
     moderationHold: listing.moderationHold,
     submittedVersion: listing.submittedVersion,
+    rejectionReason: null,
     publishedAt: listing.publishedAt?.toISOString() ?? null,
     expiresAt: listing.expiresAt?.toISOString() ?? null,
     createdAt: listing.createdAt.toISOString(),
@@ -73,8 +75,17 @@ export class ListingsService {
     property: Property,
     owner: User
   ): Promise<OwnerListingDetail> {
+    const decision =
+      listing.status === 'rejected'
+        ? await this.orm.em.fork().findOne(ModerationDecision, {
+            listingId: listing._id,
+            resultVersion: listing.version,
+            decision: 'rejected'
+          })
+        : null;
     return {
       ...ownerListing(listing),
+      rejectionReason: decision?.reason ?? null,
       property: ownerProperty(property),
       submission: await this.policy.submission(listing, property, owner)
     };
@@ -124,8 +135,26 @@ export class ListingsService {
     });
     const items = rows.slice(0, query.limit);
     const last = items.at(-1);
+    const rejected = items.filter((item) => item.status === 'rejected');
+    const decisions = rejected.length
+      ? await this.orm.em.fork().find(ModerationDecision, {
+          $or: rejected.map((item) => ({
+            listingId: item._id,
+            resultVersion: item.version,
+            decision: 'rejected' as const
+          }))
+        })
+      : [];
     return {
-      items: items.map(ownerListing),
+      items: items.map((item) => ({
+        ...ownerListing(item),
+        rejectionReason:
+          item.status === 'rejected'
+            ? (decisions.find(
+                (event) => event.listingId.equals(item._id) && event.resultVersion === item.version
+              )?.reason ?? null)
+            : null
+      })),
       nextCursor:
         rows.length > query.limit && last
           ? Buffer.from(

@@ -3,6 +3,8 @@ import { isDeepStrictEqual } from 'node:util';
 import { listingStates, propertyTypes } from './domain.js';
 import { authValidators } from '../auth/auth.schema.js';
 import { mediaValidators } from '../media/media.schema.js';
+import { moderationValidators } from '../admin/moderation.entities.js';
+import { adminProvisioningValidators } from './admin-provision.js';
 
 const string = (maxLength: number, minLength = 0) => ({ bsonType: 'string', minLength, maxLength });
 const numeric = (minimum: number, maximum: number, integer = false) => ({
@@ -135,7 +137,9 @@ export async function provision(orm: MikroORM): Promise<void> {
   for (const [name, validator] of Object.entries({
     ...validators,
     ...authValidators,
-    ...mediaValidators
+    ...mediaValidators,
+    ...moderationValidators,
+    ...adminProvisioningValidators
   })) {
     const existing = await db.listCollections({ name }, { nameOnly: false }).next();
     if (!existing) {
@@ -166,6 +170,13 @@ export async function provision(orm: MikroORM): Promise<void> {
     .collection('properties')
     .createIndex({ ownerId: 1, createdAt: -1, _id: -1 }, { name: 'owner_created' });
   const listings = db.collection('listings');
+  await listings.createIndex({ status: 1, createdAt: -1, _id: -1 }, { name: 'status_created' });
+  await db
+    .collection('moderation_decisions')
+    .createIndex(
+      { listingId: 1, resultVersion: -1 },
+      { name: 'listing_decision_version_unique', unique: true }
+    );
   await listings.createIndex({ publicLocation: '2dsphere' }, { name: 'public_location_geo' });
   await listings.createIndex({ status: 1, publishedAt: -1, _id: -1 }, { name: 'status_published' });
   await listings.createIndex(

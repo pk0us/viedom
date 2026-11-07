@@ -1,0 +1,303 @@
+<p class="eyebrow">Administrator workspace</p>
+<h1 tabindex="-1">Pending review</h1>
+<p class="intro">
+  Check the saved listing, processed photos and private property details before making a decision.
+</p>
+@if (!authorized()) {
+  <p role="alert" class="notice">
+    Administrator access is unavailable. Sign in with an active administrator account to continue.
+  </p>
+} @else {
+  <div class="toolbar">
+    <p>Only submissions awaiting review appear in this queue.</p>
+    <button nz-button type="button" [disabled]="loading() || busy()" (click)="load(true)">
+      <span>Reload queue</span>
+    </button>
+  </div>
+  @if (notice()) {
+    <p
+      id="decision-result"
+      tabindex="-1"
+      class="notice"
+      [attr.role]="reloadRequired() ? 'alert' : 'status'"
+    >
+      {{ notice() }}
+    </p>
+  }
+  @if (reloadRequired() || reviewError()) {
+    <div class="notice">
+      @if (reviewError()) {
+        <p role="alert">{{ reviewError() }}</p>
+      }
+      <button nz-button type="button" [disabled]="busy() || reviewing()" (click)="reload()">
+        <span>Reload review</span>
+      </button>
+    </div>
+  }
+  @if (reviewing()) {
+    <app-ui-state
+      kind="loading"
+      heading="Loading review"
+      description="Getting the latest saved submission and private review information."
+    />
+  }
+  @if (review(); as detail) {
+    <section class="review-panel" aria-labelledby="review-heading" [attr.aria-busy]="busy()">
+      <div class="toolbar">
+        <h2 id="review-heading" tabindex="-1">Review listing</h2>
+        <button nz-button type="button" [disabled]="busy() || reviewing()" (click)="reload()">
+          <span>Reload review</span>
+        </button>
+      </div>
+      <p class="status-badge">
+        {{ detail.listing.status.replace('_', ' ') }} · Saved version {{ detail.listing.version }}
+      </p>
+      <h3>{{ detail.listing.title || 'Untitled listing' }}</h3>
+      <p class="price">
+        {{ detail.listing.priceMinor / 100 | price
+        }}{{ detail.listing.transactionType === 'rent' ? ' / month' : '' }}
+      </p>
+      <p class="description">{{ detail.listing.description }}</p>
+      <dl class="facts">
+        <div>
+          <dt>Property type</dt>
+          <dd>{{ detail.listing.property.type }}</dd>
+        </div>
+        <div>
+          <dt>Area</dt>
+          <dd>{{ detail.listing.property.details.areaM2 }} m²</dd>
+        </div>
+        <div>
+          <dt>Bedrooms</dt>
+          <dd>{{ detail.listing.property.details.bedrooms }}</dd>
+        </div>
+        <div>
+          <dt>Bathrooms</dt>
+          <dd>{{ detail.listing.property.details.bathrooms }}</dd>
+        </div>
+        <div>
+          <dt>Floor</dt>
+          <dd>{{ detail.listing.property.details.floor }}</dd>
+        </div>
+        <div>
+          <dt>Year built</dt>
+          <dd>{{ detail.listing.property.details.yearBuilt ?? 'Not provided' }}</dd>
+        </div>
+      </dl>
+      <p>
+        Amenities: {{ detail.listing.property.details.amenities.join(', ') || 'None provided' }}
+      </p>
+      <section class="private-panel" aria-labelledby="private-heading">
+        <h3 id="private-heading">Private location — administrator only</h3>
+        <p>
+          Confidential property information for review. The precise address and pin are excluded
+          from public listings.
+        </p>
+        <p>
+          {{ detail.listing.property.address.street }},
+          {{ detail.listing.property.address.neighborhood }},
+          {{ detail.listing.property.address.city }},
+          {{ detail.listing.property.address.countryCode }}
+        </p>
+        <p>
+          Private pin: longitude {{ detail.listing.property.privateLocation.coordinates[0] }},
+          latitude {{ detail.listing.property.privateLocation.coordinates[1] }}
+        </p>
+      </section>
+      <section class="private-panel" aria-labelledby="publisher-heading">
+        <h3 id="publisher-heading">Publisher — administrator only</h3>
+        <p>
+          {{ detail.publisher.firstName }} {{ detail.publisher.lastName }} ·
+          {{ detail.publisher.email }}
+        </p>
+        <p>
+          Account: {{ detail.publisher.active ? 'Active' : 'Inactive' }} · Email:
+          {{ detail.publisher.emailVerified ? 'Verified' : 'Unverified' }}
+        </p>
+      </section>
+      <h3>Processed photos</h3>
+      <p>Review photos for sensitive addresses and contact details as well as listing quality.</p>
+      <div class="photo-grid">
+        @for (photo of readyMedia(); track photo.id; let index = $index) {
+          <figure>
+            <app-listing-photo
+              [listingId]="detail.listing.id"
+              [mediaId]="photo.id"
+              variant="large"
+              [alt]="'Review photo ' + (index + 1) + ' of ' + detail.listing.title"
+            />
+            <figcaption>
+              Photo {{ index + 1
+              }}{{ detail.media.coverMediaId === photo.id ? ' · Cover photo' : '' }}
+            </figcaption>
+          </figure>
+        } @empty {
+          <p>No processed photos are available.</p>
+        }
+      </div>
+      @if (!detail.canDecide || detail.listing.status !== 'pending_review') {
+        <p class="notice">
+          A decision is unavailable for this submission. Administrators cannot review their own
+          listings. The server also checks the saved version, publisher and publication
+          requirements.
+        </p>
+      }
+      @if (detail.canDecide && !detail.canApprove) {
+        <p class="notice">
+          This submission does not meet the current publication requirements. You can reject it with
+          clear feedback for the owner.
+        </p>
+      }
+      <section aria-labelledby="history-heading">
+        <h3 id="history-heading">Recent moderation decisions</h3>
+        @for (event of detail.history; track event.id) {
+          <p>
+            {{ event.decision === 'approved' ? 'Approved' : 'Rejected' }} · Version
+            {{ event.reviewedVersion }} · {{ event.createdAt | date: 'medium' }}
+          </p>
+          @if (event.reason) {
+            <p class="description">{{ event.reason }}</p>
+          }
+        } @empty {
+          <p>No moderation decisions recorded.</p>
+        }
+      </section>
+      <div class="decision-form">
+        <label for="rejection-reason">Rejection reason</label>
+        <p id="reason-help">
+          Required when rejecting, up to 2,000 characters. Explain the changes needed. This feedback
+          is visible to the owner.
+        </p>
+        <textarea
+          id="rejection-reason"
+          rows="4"
+          maxlength="2000"
+          [formControl]="reason"
+          [readOnly]="busy() || !!confirmation()"
+          aria-describedby="reason-help reason-error"
+          [attr.aria-invalid]="
+            reason.touched && (!reason.value.trim() || reason.invalid) ? 'true' : null
+          "
+        ></textarea>
+        <p id="reason-error" class="error">
+          @if (reason.touched && (!reason.value.trim() || reason.invalid)) {
+            Enter a reason between 1 and 2,000 characters to reject this listing.
+          }
+        </p>
+        <div class="actions">
+          <button
+            id="approve-listing"
+            nz-button
+            nzType="primary"
+            type="button"
+            [disabled]="!canDecide() || !detail.canApprove || !!confirmation()"
+            (click)="confirm('approve')"
+          >
+            <span>Approve listing</span>
+          </button>
+          <button
+            id="reject-listing"
+            nz-button
+            nzDanger
+            type="button"
+            [disabled]="!canDecide() || !!confirmation()"
+            (click)="confirm('reject')"
+          >
+            <span>Reject listing</span>
+          </button>
+        </div>
+      </div>
+      @if (confirmation(); as decision) {
+        <section class="confirmation" aria-labelledby="decision-heading">
+          <h3 id="decision-heading" tabindex="-1">
+            {{ decision === 'approve' ? 'Publish this listing?' : 'Reject this listing?' }}
+          </h3>
+          <p>
+            {{
+              decision === 'approve'
+                ? 'Approval publishes this saved submission if it still meets every publication requirement.'
+                : 'The listing stays private and the owner receives the reason below.'
+            }}
+          </p>
+          @if (decision === 'reject') {
+            <p class="description">{{ reason.value.trim() }}</p>
+          }
+          <div class="actions">
+            <button
+              nz-button
+              nzType="primary"
+              type="button"
+              [disabled]="busy() || reloadRequired()"
+              [nzLoading]="busy()"
+              [attr.aria-label]="decision === 'approve' ? 'Confirm approval' : 'Confirm rejection'"
+              [attr.aria-busy]="busy()"
+              (click)="decide()"
+            >
+              <span>{{ decision === 'approve' ? 'Confirm approval' : 'Confirm rejection' }}</span>
+            </button>
+            <button nz-button type="button" [disabled]="busy()" (click)="cancel()">
+              <span>Cancel decision</span>
+            </button>
+          </div>
+        </section>
+      }
+    </section>
+  }
+  @if (queueError()) {
+    <app-ui-state
+      kind="error"
+      heading="Queue unavailable"
+      [description]="queueError()"
+      retryLabel="Try again"
+      (retry)="load(items().length === 0)"
+    />
+  }
+  @if (loading() && !items().length) {
+    <app-ui-state
+      kind="loading"
+      heading="Loading pending submissions"
+      description="Fetching the latest listings awaiting review."
+    />
+  } @else if (!loading() && !queueError() && !items().length) {
+    <app-ui-state
+      kind="empty"
+      heading="No pending submissions"
+      description="New owner submissions will appear here when they are ready for review."
+    />
+  }
+  <div class="queue" [attr.aria-busy]="loading()">
+    @for (listing of items(); track listing.id) {
+      <article class="queue-card" [attr.aria-labelledby]="'pending-' + listing.id">
+        <p class="status-badge">Pending review · Version {{ listing.version }}</p>
+        <h2 [id]="'pending-' + listing.id">{{ listing.title || 'Untitled listing' }}</h2>
+        <p class="price">
+          {{ listing.priceMinor / 100 | price
+          }}{{ listing.transactionType === 'rent' ? ' / month' : '' }}
+        </p>
+        <p>Updated {{ listing.updatedAt | date: 'medium' }}</p>
+        <button
+          nz-button
+          type="button"
+          [disabled]="busy() || reloadRequired()"
+          [attr.aria-label]="'Review listing: ' + (listing.title || 'untitled listing')"
+          (click)="open(listing.id)"
+        >
+          <span>Review listing</span>
+        </button>
+      </article>
+    }
+  </div>
+  @if (nextCursor()) {
+    <div class="pagination">
+      <button
+        nz-button
+        type="button"
+        [disabled]="loading() || busy()"
+        [nzLoading]="loading()"
+        (click)="load()"
+      >
+        <span>Load more submissions</span>
+      </button>
+    </div>
+  }
+}

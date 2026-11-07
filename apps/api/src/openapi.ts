@@ -60,6 +60,7 @@ const summary = {
   status: { enum: ['draft', 'pending_review', 'rejected', 'published', 'paused', 'archived'] },
   moderationHold: { type: 'boolean' },
   submittedVersion: nullable(version),
+  rejectionReason: nullable(string(2000, 1)),
   publishedAt: nullable(date),
   expiresAt: nullable(date),
   createdAt: date,
@@ -107,13 +108,84 @@ const parameter = { name: 'id', in: 'path', required: true, schema: id };
 export const openApiDocument = {
   openapi: '3.1.0',
   info: {
-    title: 'Viedom owner property and listing API',
-    version: '0.11.0',
+    title: 'Viedom property, listing and administrative review API',
+    version: '0.12.0',
     description:
       'Bearer authentication only; cookies do not authorize owner operations. PATCH replaces all editable content. Stale mutations conflict; clients must reload after 409. Original uploads are private. Processed images require owner authorization or current publication eligibility.'
   },
   servers: [{ url: '/api' }],
   paths: {
+    '/admin/listings/pending': {
+      get: {
+        ...operation(
+          'listPendingListings',
+          'AdminListings',
+          undefined,
+          false,
+          'Active ADMIN and live bearer session required. Private pending queue with stable createdAt and ID descending ordering.'
+        ),
+        parameters: [
+          { name: 'limit', in: 'query', schema: { ...integer(1, 50), default: 20 } },
+          {
+            name: 'cursor',
+            in: 'query',
+            schema: { ...string(256, 1), pattern: '^[A-Za-z0-9_-]+$' }
+          }
+        ]
+      }
+    },
+    '/admin/listings/{id}': {
+      parameters: [parameter],
+      get: operation(
+        'reviewListing',
+        'AdminListingDetail',
+        undefined,
+        false,
+        'Active ADMIN and live bearer session required. Explicit private review projection includes private address and coordinates, publisher eligibility, protected processed photos and latest 20 audit events. canDecide allows rejection of the current pending submission; canApprove additionally requires publication completeness.'
+      )
+    },
+    '/admin/listings/{id}/approve': {
+      parameters: [parameter],
+      post: operation(
+        'approveListing',
+        'AdminDecision',
+        'VersionRequest',
+        false,
+        'Active ADMIN and live bearer session required. Cannot decide own submission. Requires exact pending submitted version, current eligible publisher, consistent canonical property, no deletion/hold/expiry and complete validated processed media. Atomically publishes reviewed content with 90-day expiry and inserts immutable audit evidence. Stale or concurrent decisions conflict.'
+      )
+    },
+    '/admin/listings/{id}/reject': {
+      parameters: [parameter],
+      post: operation(
+        'rejectListing',
+        'AdminDecision',
+        'RejectListing',
+        false,
+        'Active ADMIN and live bearer session required. Cannot decide own submission. Requires exact pending submitted version and no deletion or moderation hold. Publication incompleteness does not prevent rejection. Trims the reason; atomically records private owner feedback and audit evidence.'
+      )
+    },
+    '/admin/listings/{id}/media/{mediaId}/{variant}': {
+      parameters: [
+        parameter,
+        { name: 'mediaId', in: 'path', required: true, schema: id },
+        { name: 'variant', in: 'path', required: true, schema: { enum: ['large', 'thumbnail'] } }
+      ],
+      get: {
+        operationId: 'readReviewProcessedImage',
+        security: [{ bearerAuth: [] }],
+        description:
+          'Active ADMIN and live bearer session required. Rechecks current listing, gallery and authorization after storage read. Delivers processed derivatives only.',
+        responses: {
+          '200': {
+            description: 'Authorized sanitized image; no-store, noindex and no-referrer.',
+            content: { 'image/webp': { schema: { type: 'string', format: 'binary' } } }
+          },
+          '401': { description: 'Invalid or missing bearer session.' },
+          '403': { description: 'Administrator access denied.' },
+          '404': { description: 'Listing or validated processed derivative unavailable.' }
+        }
+      }
+    },
     '/properties': { post: operation('createProperty', 'OwnerProperty', 'PropertyContent', true) },
     '/properties/{id}': {
       parameters: [parameter],
@@ -293,6 +365,48 @@ export const openApiDocument = {
       }),
       UpdateListing: object({ ...listing, expectedVersion }),
       VersionRequest: object({ expectedVersion }),
+      RejectListing: object({
+        expectedVersion,
+        reason: {
+          ...string(2000, 1),
+          description:
+            'Trimmed before validation and persistence; must contain at least one non-whitespace character.'
+        }
+      }),
+      AdminDecision: object({
+        id,
+        version,
+        status: { enum: ['published', 'rejected'] },
+        rejectionReason: nullable(string(2000, 1))
+      }),
+      AdminListings: object({
+        items: { type: 'array', maxItems: 50, items: ref('OwnerListingSummary') },
+        nextCursor: nullable(string(256, 1))
+      }),
+      AdminModerationEvent: object({
+        id,
+        reviewerId: id,
+        reviewedVersion: expectedVersion,
+        resultVersion: integer(2, Number.MAX_SAFE_INTEGER),
+        decision: { enum: ['approved', 'rejected'] },
+        reason: nullable(string(2000, 1)),
+        createdAt: date
+      }),
+      AdminListingDetail: object({
+        listing: ref('OwnerListingDetail'),
+        publisher: object({
+          id,
+          email: { ...string(254, 3), format: 'email' },
+          firstName: string(100, 1),
+          lastName: string(100, 1),
+          emailVerified: { type: 'boolean' },
+          active: { type: 'boolean' }
+        }),
+        media: ref('OwnerMediaGallery'),
+        canDecide: { type: 'boolean' },
+        canApprove: { type: 'boolean' },
+        history: { type: 'array', maxItems: 20, items: ref('AdminModerationEvent') }
+      }),
       OwnerListingSummary: object(summary),
       OwnerListingDetail: object({
         ...summary,

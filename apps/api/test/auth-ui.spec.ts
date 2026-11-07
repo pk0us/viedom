@@ -15,7 +15,7 @@ import { once } from 'node:events';
 import type { Profile } from 'passport-google-oauth20';
 import { loadConfig, root } from '../../../scripts/config.mjs';
 import { localTarget } from '../src/database/local-target.js';
-import { ormOptions } from '../src/database/orm-options.js';
+import { initializeOrm, ormOptions } from '../src/database/orm-options.js';
 import { provision } from '../src/database/provision.js';
 import { Configuration } from '../src/configuration.js';
 import { AuthModule } from '../src/auth/auth.module.js';
@@ -57,7 +57,7 @@ beforeAll(async () => {
   if (existingWeb)
     throw new Error('Stop the application on the configured web port before the auth smoke.');
   const target = localTarget(config, true);
-  orm = await MikroORM.init(ormOptions(target.uri, target.dbName));
+  orm = await initializeOrm(ormOptions(target.uri, target.dbName));
   await provision(orm);
   const module = await Test.createTestingModule({ imports: [AuthModule, ListingsModule] })
     .overrideProvider(MikroORM)

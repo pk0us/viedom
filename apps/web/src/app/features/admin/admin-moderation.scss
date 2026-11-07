@@ -1,0 +1,159 @@
+@use '../../../styles/variables' as t;
+
+:host {
+  display: block;
+}
+h1 {
+  font-size: clamp(2rem, 3vw, 2.75rem);
+  margin-block: 12px;
+}
+h2 {
+  font-size: 1.4rem;
+}
+h3 {
+  font-size: 1.15rem;
+}
+p,
+dd,
+h2,
+h3 {
+  overflow-wrap: anywhere;
+}
+.intro {
+  max-width: 65ch;
+  color: t.$muted;
+}
+.toolbar,
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.toolbar {
+  margin-block: 24px;
+}
+.actions {
+  justify-content: start;
+}
+button {
+  min-height: 44px;
+  white-space: normal;
+}
+button.ant-btn {
+  transition: none;
+}
+button.ant-btn-dangerous:not([disabled]) {
+  color: t.$danger;
+  background: t.$surface;
+  border-color: t.$danger;
+}
+.notice,
+.private-panel,
+.confirmation {
+  border-radius: 8px;
+  padding: 16px;
+  background: t.$brand-soft;
+  margin-block: 20px;
+}
+.private-panel {
+  border: 1px solid t.$border;
+}
+.private-panel h3 {
+  margin-top: 0;
+}
+.queue {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 24px;
+}
+.queue-card,
+.review-panel {
+  min-width: 0;
+  border: 1px solid t.$border;
+  border-radius: t.$radius;
+  background: t.$surface;
+  padding: 24px;
+}
+.review-panel {
+  margin-block: 24px;
+}
+.review-panel > .toolbar {
+  margin-top: 0;
+}
+.status-badge {
+  color: t.$brand;
+  background: t.$brand-soft;
+  border-radius: 6px;
+  padding: 6px 10px;
+  display: inline-block;
+}
+.price {
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+.description {
+  white-space: pre-wrap;
+}
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 16px;
+}
+dt {
+  color: t.$muted;
+}
+dd {
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 16px;
+}
+figure {
+  min-width: 0;
+  margin: 0;
+}
+figcaption {
+  margin-top: 8px;
+  color: t.$muted;
+}
+.decision-form {
+  margin-top: 32px;
+}
+label {
+  font-weight: 600;
+}
+textarea {
+  display: block;
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  border: 1px solid t.$border;
+  border-radius: 6px;
+  padding: 12px;
+  background: t.$surface;
+  color: t.$text;
+  font: inherit;
+}
+.error {
+  color: t.$danger;
+  min-height: 1.5em;
+}
+.pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+@media (max-width: t.$mobile) {
+  .queue-card,
+  .review-panel {
+    padding: 16px;
+  }
+  .toolbar {
+    align-items: start;
+  }
+}

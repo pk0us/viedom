@@ -257,4 +257,77 @@ describe('protected listing image lifetime', () => {
     expect(api.variant).toHaveBeenCalledTimes(2);
     expect(fixture.nativeElement.querySelector('img')).not.toBeNull();
   });
+
+  it('discards private bytes when the account changes before its cleanup effect runs', async () => {
+    let resolve!: (value: Blob) => void;
+    api.variant.mockReturnValueOnce(new Promise<Blob>((done) => (resolve = done)));
+    const fixture = await setup();
+    user.set({ id: 'another-owner' });
+    resolve(new Blob(['first owner private bytes']));
+    await Promise.resolve();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    await fixture.whenStable();
+    expect(api.variant.mock.calls[0]?.[3].aborted).toBe(true);
+    fixture.destroy();
+  });
+});
+
+describe('photo gallery action labels', () => {
+  afterEach(() => {
+    TestBed.resetTestingModule();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('includes each visible photo action in its accessible name', async () => {
+    vi.stubGlobal(
+      'URL',
+      Object.assign(class extends URL {}, {
+        createObjectURL: vi.fn(() => 'blob:gallery-photo'),
+        revokeObjectURL: vi.fn()
+      })
+    );
+    TestBed.configureTestingModule({
+      providers: [
+        {
+          provide: AuthSession,
+          useValue: { user: signal({ id: 'owner' }), identityVersion: () => 0 }
+        },
+        {
+          provide: OwnerMediaClient,
+          useValue: {
+            gallery: vi.fn().mockResolvedValue(gallery()),
+            variant: vi.fn().mockResolvedValue(new Blob(['processed photo']))
+          }
+        }
+      ]
+    });
+    const fixture = TestBed.createComponent(ListingPhotos);
+    fixture.componentRef.setInput('listingId', id);
+    await fixture.whenStable();
+    vi.spyOn(fixture.componentInstance, 'hasFile').mockReturnValue(true);
+    fixture.componentInstance.gallery.set(
+      gallery(2, [asset('ready', 'ready'), asset('failed', 'failed')])
+    );
+    await fixture.whenStable();
+    const element = fixture.nativeElement as HTMLElement;
+    const actions = Array.from(
+      element.querySelectorAll<HTMLButtonElement>('.photo-actions button')
+    );
+    expect(actions.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Move earlier: photo 1',
+      'Move later: photo 1',
+      'Use as cover: photo 1',
+      'Delete photo 1',
+      'Move earlier: photo 2',
+      'Move later: photo 2',
+      'Delete photo 2',
+      'Retry upload: photo 2'
+    ]);
+    for (const button of actions) {
+      expect(button.getAttribute('aria-label')).toContain(
+        button.querySelector('span')?.textContent?.trim()
+      );
+    }
+  });
 });

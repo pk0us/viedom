@@ -14,6 +14,7 @@ import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import type {
+  AdminListingDetail,
   MediaUploadResponse,
   OwnerListingDetail,
   OwnerListingPreview,
@@ -21,7 +22,7 @@ import type {
 } from '@viedom/contracts';
 import { loadConfig, root } from '../../../scripts/config.mjs';
 import { localTarget } from '../src/database/local-target.js';
-import { ormOptions } from '../src/database/orm-options.js';
+import { initializeOrm, ormOptions } from '../src/database/orm-options.js';
 import { provision } from '../src/database/provision.js';
 import { Listing, Property, User } from '../src/database/entities.js';
 import { Configuration } from '../src/configuration.js';
@@ -38,6 +39,8 @@ import { MediaModule } from '../src/media/media.module.js';
 import { MediaAsset } from '../src/media/media.entities.js';
 import { MediaWorker } from '../src/media/media.worker.js';
 import { MediaStorage } from '../src/media/storage.js';
+import { AdminModule } from '../src/admin/admin.module.js';
+import { ModerationDecision } from '../src/admin/moderation.entities.js';
 
 const config = loadConfig();
 const run = randomUUID();
@@ -61,10 +64,10 @@ beforeAll(async () => {
       throw new Error('Stop applications on the configured web and API ports before owner smoke.');
   }
   const target = localTarget(config, true);
-  orm = await MikroORM.init(ormOptions(target.uri, target.dbName));
+  orm = await initializeOrm(ormOptions(target.uri, target.dbName));
   await provision(orm);
   const module = await Test.createTestingModule({
-    imports: [AuthModule, PropertiesModule, ListingsModule, MediaModule]
+    imports: [AuthModule, PropertiesModule, ListingsModule, MediaModule, AdminModule]
   })
     .overrideProvider(MikroORM)
     .useValue(orm)
@@ -131,6 +134,7 @@ afterAll(async () => {
       ];
       for (const key of new Set(keys)) await storage.remove(key);
     }
+    await db.collection('moderation_decisions').deleteMany({ publisherId: { $in: ids } });
     await db.collection('media_assets').deleteMany({ ownerId: { $in: ids } });
     await db.collection('media_galleries').deleteMany({ ownerId: { $in: ids } });
     await db.collection('listings').deleteMany({ publisherId: { $in: ids } });
@@ -147,12 +151,13 @@ afterAll(async () => {
   await orm?.close(true);
 });
 
-async function account(verified = false): Promise<User> {
+async function account(verified = false, role: 'USER' | 'ADMIN' = 'USER'): Promise<User> {
   const user = Object.assign(new User(), {
     email: `${run}.${accounts.length}@example.invalid`,
     firstName: 'Browser',
     lastName: 'Owner',
     passwordHash,
+    role,
     ...(verified ? { emailVerifiedAt: new Date() } : {})
   });
   accounts.push(user);
@@ -263,6 +268,306 @@ async function noPersistentPrivateData(value: BrowserContext): Promise<void> {
   for (const page of value.pages())
     expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
 }
+
+async function submitForModeration(page: Page, user: User, title: string): Promise<string> {
+  const id = await createDraft(page);
+  await page.getByLabel('Title (optional for drafts)', { exact: true }).fill(title);
+  const saved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/listings/${id}`) && response.request().method() === 'PATCH'
+  );
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  expect((await saved).ok()).toBe(true);
+  const photos = page.getByRole('region', { name: 'Listing photos', exact: true });
+  const picker = photos.getByLabel('Add photos', { exact: true });
+  const file = await imageFile('moderation.jpg');
+  await browserExpect(picker).toBeEnabled();
+  try {
+    const reservation = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/listings/${id}/media/upload-url`) &&
+        response.request().method() === 'POST'
+    );
+    const completed = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/listings/${id}/media/complete`) &&
+        response.request().method() === 'POST'
+    );
+    await picker.setInputFiles(file);
+    expect((await reservation).ok()).toBe(true);
+    expect((await completed).ok()).toBe(true);
+    await browserExpect(photos.getByText('Ready', { exact: true })).toHaveCount(1, {
+      timeout: 25000
+    });
+  } catch (error) {
+    await page
+      .screenshot({
+        path: resolve(artifactDirectory, `moderation-upload-failed-${id}.png`),
+        fullPage: true
+      })
+      .catch(() => undefined);
+    throw error;
+  }
+  const submit = page.getByRole('button', { name: 'Submit for review', exact: true });
+  await browserExpect(submit).toBeEnabled();
+  await submit.click();
+  await browserExpect(
+    page.getByText('Submitted for review. Your listing is not published.', { exact: true })
+  ).toBeVisible();
+  expect((await detail(user, id)).status).toBe('pending_review');
+  return id;
+}
+
+it('completes real owner submissions through administrator moderation and owner rejection feedback', async () => {
+  const user = await account(true);
+  const moderator = await account(true, 'ADMIN');
+  const owning = await context();
+  const reviewing = await context();
+  let releaseApproval = () => {};
+  try {
+    const ownerPage = await owning.newPage();
+    const adminPage = await reviewing.newPage();
+    const errors: string[] = [];
+    ownerPage.on('pageerror', (error) => errors.push(error.message));
+    adminPage.on('pageerror', (error) => errors.push(error.message));
+    await signIn(ownerPage, user);
+    const approvedTitle = 'Synthetic approval browser apartment';
+    const rejectedTitle = 'Synthetic rejection browser apartment';
+    const approvedId = await submitForModeration(ownerPage, user, approvedTitle);
+    const rejectedId = await submitForModeration(ownerPage, user, rejectedTitle);
+    await signIn(adminPage, moderator);
+    await adminPage.goto(`${config.webOrigin}/admin`);
+    await browserExpect(
+      adminPage.getByRole('heading', { name: 'Pending review', exact: true })
+    ).toBeVisible();
+    await browserExpect(
+      adminPage.getByRole('button', { name: `Review listing: ${approvedTitle}`, exact: true })
+    ).toBeVisible();
+    await browserExpect(
+      adminPage.getByRole('button', { name: `Review listing: ${rejectedTitle}`, exact: true })
+    ).toBeVisible();
+    await browserExpect(
+      adminPage.getByRole('button', { name: 'Reload queue', exact: true })
+    ).toBeEnabled();
+    await adminPage.setViewportSize({ width: 375, height: 900 });
+    await adminPage.screenshot({
+      path: resolve(artifactDirectory, 'moderation-queue-mobile.png'),
+      fullPage: true
+    });
+    expect((await new AxeBuilder({ page: adminPage }).analyze()).violations).toEqual([]);
+    expect(await adminPage.locator('html').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+      true
+    );
+    await adminPage
+      .getByRole('button', { name: `Review listing: ${approvedTitle}`, exact: true })
+      .click();
+    await browserExpect(
+      adminPage.getByRole('heading', { name: 'Review listing', exact: true })
+    ).toBeVisible();
+    await browserExpect(adminPage).toHaveURL(`${config.webOrigin}/admin/listings/${approvedId}`);
+    await browserExpect(
+      adminPage.getByRole('heading', { name: 'Review listing', exact: true })
+    ).toBeFocused();
+    await browserExpect(
+      adminPage.getByText('PRIVATE SYNTHETIC COURTYARD 37', { exact: false })
+    ).toBeVisible();
+    await browserExpect(adminPage.getByRole('img')).toHaveCount(1);
+    await browserExpect(adminPage.getByRole('img')).toHaveAttribute('src', /^blob:/);
+    await adminPage.screenshot({
+      path: resolve(artifactDirectory, 'moderation-review-mobile.png'),
+      fullPage: true
+    });
+    expect((await new AxeBuilder({ page: adminPage }).analyze()).violations).toEqual([]);
+    expect(await adminPage.locator('html').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+      true
+    );
+    const representation = await request(moderator, `admin/listings/${approvedId}`);
+    expect(representation.headers.get('cache-control')).toBe('no-store');
+    const review: AdminListingDetail = await representation.json();
+    expect(JSON.stringify(review)).not.toContain('originalKey');
+    const privateImagePath = `admin/listings/${approvedId}/media/${review.media.items[0]!.id}/large`;
+    const image = await request(moderator, privateImagePath);
+    expect(image.status).toBe(200);
+    expect(image.headers.get('cache-control')).toBe('no-store');
+    expect(image.headers.get('content-type')).toBe('image/webp');
+    const processed = Buffer.from(await image.arrayBuffer());
+    expect((await sharp(processed).metadata()).exif).toBeUndefined();
+    expect((await request(user, privateImagePath)).status).toBe(403);
+    expect((await fetch(`${config.public.apiBaseUrl}/${privateImagePath}`)).status).toBe(401);
+    expect((await request(moderator, `me/listings/${approvedId}`)).status).toBe(404);
+    expect(
+      (
+        await fetch(
+          `${config.public.apiBaseUrl}/media/${approvedId}/${review.media.items[0]!.id}/large`
+        )
+      ).status
+    ).toBe(404);
+    let approvals = 0;
+    const gate = new Promise<void>((resolve) => (releaseApproval = resolve));
+    await adminPage.route(
+      `${config.public.apiBaseUrl}/admin/listings/${approvedId}/approve`,
+      async (route) => {
+        approvals++;
+        await gate;
+        await route.continue();
+      }
+    );
+    await adminPage.getByRole('button', { name: 'Approve listing', exact: true }).click();
+    const confirm = adminPage.getByRole('button', { name: 'Confirm approval', exact: true });
+    try {
+      await confirm.focus();
+      await adminPage.keyboard.press('Enter');
+      await browserExpect.poll(() => approvals).toBe(1);
+      await browserExpect(confirm).toBeDisabled();
+      await browserExpect(confirm).toHaveAttribute('aria-busy', 'true');
+      await adminPage.keyboard.press('Enter');
+      expect(approvals).toBe(1);
+    } catch (error) {
+      await adminPage
+        .screenshot({
+          path: resolve(artifactDirectory, 'moderation-approval-gate-failed.png'),
+          fullPage: true
+        })
+        .catch(() => undefined);
+      throw error;
+    }
+    releaseApproval();
+    await browserExpect.poll(async () => (await detail(user, approvedId)).status).toBe('published');
+    expect(approvals).toBe(1);
+    const approvedMedia = await gallery(user, approvedId);
+    const publicImage = await fetch(
+      `${config.public.apiBaseUrl}/media/${approvedId}/${approvedMedia.items[0]!.id}/large`
+    );
+    expect(publicImage.status).toBe(200);
+    expect(publicImage.headers.get('content-type')).toBe('image/webp');
+
+    await adminPage
+      .getByRole('button', { name: `Review listing: ${rejectedTitle}`, exact: true })
+      .click();
+    await browserExpect(adminPage).toHaveURL(`${config.webOrigin}/admin/listings/${rejectedId}`);
+    await browserExpect(
+      adminPage
+        .getByRole('region', { name: 'Review listing', exact: true })
+        .getByRole('heading', { name: rejectedTitle, exact: true })
+    ).toBeVisible();
+    const reason =
+      'Please describe the rooms. <img src=x onerror="window.moderationInjected=true">';
+    await adminPage.getByLabel('Rejection reason', { exact: true }).fill(reason);
+    await adminPage.getByRole('button', { name: 'Reject listing', exact: true }).click();
+    await browserExpect(
+      adminPage.getByRole('button', { name: 'Confirm rejection', exact: true })
+    ).toBeVisible();
+    await adminPage.screenshot({
+      path: resolve(artifactDirectory, 'moderation-rejection-mobile.png'),
+      fullPage: true
+    });
+    expect((await new AxeBuilder({ page: adminPage }).analyze()).violations).toEqual([]);
+    await adminPage.getByRole('button', { name: 'Confirm rejection', exact: true }).click();
+    await browserExpect.poll(async () => (await detail(user, rejectedId)).status).toBe('rejected');
+    const rejectedMedia = await gallery(user, rejectedId);
+    expect(
+      (
+        await fetch(
+          `${config.public.apiBaseUrl}/media/${rejectedId}/${rejectedMedia.items[0]!.id}/large`
+        )
+      ).status
+    ).toBe(404);
+    await ownerPage.goto(`${config.webOrigin}/owner/listings/${rejectedId}`);
+    await browserExpect(ownerPage.getByText('Changes requested', { exact: true })).toBeVisible();
+    await browserExpect(ownerPage.getByText(reason, { exact: true })).toBeVisible();
+    expect(await ownerPage.evaluate(() => Object.hasOwn(window, 'moderationInjected'))).toBe(false);
+    await ownerPage.setViewportSize({ width: 375, height: 900 });
+    await browserExpect(
+      ownerPage.getByRole('button', { name: 'Refresh photos', exact: true })
+    ).toBeEnabled();
+    await ownerPage.screenshot({
+      path: resolve(artifactDirectory, 'moderation-owner-reason-mobile.png'),
+      fullPage: true
+    });
+    expect((await new AxeBuilder({ page: ownerPage }).analyze()).violations).toEqual([]);
+    await ownerPage.goto(`${config.webOrigin}/owner`);
+    await browserExpect(
+      ownerPage
+        .getByRole('region', { name: 'Review feedback', exact: true })
+        .getByText(reason, { exact: true })
+    ).toBeVisible();
+    for (const id of [approvedId, rejectedId]) {
+      const events = await orm.em.fork().find(ModerationDecision, { listingId: new ObjectId(id) });
+      expect(events).toHaveLength(1);
+      expect(events[0]!.reviewerId).toEqual(moderator._id);
+    }
+    await noPersistentPrivateData(owning);
+    await noPersistentPrivateData(reviewing);
+    await adminPage.getByRole('button', { name: 'Log out', exact: true }).click();
+    await browserExpect(adminPage).toHaveURL(`${config.webOrigin}/auth/login`);
+    await browserExpect(
+      adminPage.getByText('PRIVATE SYNTHETIC COURTYARD 37', { exact: false })
+    ).toHaveCount(0);
+    await signIn(adminPage, user);
+    await adminPage.goto(`${config.webOrigin}/admin/listings/${approvedId}`);
+    await browserExpect(adminPage).toHaveURL(`${config.webOrigin}/owner`);
+    await browserExpect(adminPage.getByText(moderator.email, { exact: false })).toHaveCount(0);
+    await noPersistentPrivateData(reviewing);
+    expect(errors).toEqual([]);
+  } finally {
+    releaseApproval();
+    await owning.close();
+    await reviewing.close();
+  }
+});
+
+it('denies ordinary users the moderation route and makes stale reviews require reload', async () => {
+  const user = await account(true);
+  const moderator = await account(true, 'ADMIN');
+  const owning = await context();
+  const reviewing = await context();
+  try {
+    const ownerPage = await owning.newPage();
+    const adminPage = await reviewing.newPage();
+    await signIn(ownerPage, user);
+    await ownerPage.goto(`${config.webOrigin}/admin`);
+    await browserExpect(ownerPage).toHaveURL(`${config.webOrigin}/owner`);
+    await browserExpect(
+      ownerPage.getByRole('heading', { name: 'Pending review', exact: true })
+    ).toHaveCount(0);
+    const title = 'Synthetic stale moderation apartment';
+    const id = await submitForModeration(ownerPage, user, title);
+    await signIn(adminPage, moderator);
+    await adminPage.goto(`${config.webOrigin}/admin`);
+    await adminPage.getByRole('button', { name: `Review listing: ${title}`, exact: true }).click();
+    await browserExpect(
+      adminPage.getByRole('heading', { name: 'Review listing', exact: true })
+    ).toBeVisible();
+    const saved = await detail(user, id);
+    expect(
+      (
+        await request(user, `listings/${id}`, 'PATCH', {
+          transactionType: saved.transactionType,
+          title: 'Changed while administrator was reviewing',
+          description: saved.description,
+          priceMinor: saved.priceMinor,
+          currency: saved.currency,
+          expectedVersion: saved.version
+        })
+      ).status
+    ).toBe(200);
+    await adminPage.getByRole('button', { name: 'Approve listing', exact: true }).click();
+    const decision = adminPage.waitForResponse((response) =>
+      response.url().endsWith(`/admin/listings/${id}/approve`)
+    );
+    await adminPage.getByRole('button', { name: 'Confirm approval', exact: true }).click();
+    expect((await decision).status()).toBe(409);
+    await browserExpect(adminPage.getByRole('alert')).toContainText(/reload/i);
+    await browserExpect(
+      adminPage.getByRole('button', { name: 'Approve listing', exact: true })
+    ).toBeDisabled();
+    expect((await detail(user, id)).status).toBe('draft');
+    expect(await orm.em.fork().count(ModerationDecision, { listingId: new ObjectId(id) })).toBe(0);
+  } finally {
+    await owning.close();
+    await reviewing.close();
+  }
+});
 
 it('saves, reopens and edits exact draft values on desktop and mobile without public readiness', async () => {
   const user = await account();
@@ -517,7 +822,7 @@ it('uploads private photos, edits the gallery by keyboard, previews safe fields 
       timeout: 25000
     });
     await page.setViewportSize({ width: 375, height: 900 });
-    const move = photos.getByRole('button', { name: 'Move photo 3 earlier', exact: true });
+    const move = photos.getByRole('button', { name: 'Move earlier: photo 3', exact: true });
     const reorder = page.waitForResponse(
       (response) =>
         response.url().endsWith(`/listings/${id}/media`) && response.request().method() === 'PATCH'
@@ -534,7 +839,7 @@ it('uploads private photos, edits the gallery by keyboard, previews safe fields 
       (response) =>
         response.url().endsWith(`/listings/${id}/media`) && response.request().method() === 'PATCH'
     );
-    await photos.getByRole('button', { name: 'Use photo 2 as cover', exact: true }).click();
+    await photos.getByRole('button', { name: 'Use as cover: photo 2', exact: true }).click();
     expect((await cover).ok()).toBe(true);
     expect((await gallery(user, id)).coverMediaId).toBe(queued.items[2]!.id);
     const deleted = page.waitForResponse(
@@ -645,7 +950,7 @@ it('recovers a failed storage upload and keeps invalid processed images out of s
     );
     await browserExpect(picker).toBeEnabled();
     await picker.setInputFiles(await imageFile('retry-courtyard.jpg'));
-    const retry = photos.getByRole('button', { name: 'Retry photo 1', exact: true });
+    const retry = photos.getByRole('button', { name: 'Retry upload: photo 1', exact: true });
     await browserExpect(retry).toBeVisible();
     expect(interrupted).toBe(true);
     await retry.click();

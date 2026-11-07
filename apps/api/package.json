@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:db": "node test/database-smoke.ts && vitest run --config vitest.database.config.ts",
     "db:indexes": "pnpm build && node dist/database/cli.js indexes",
-    "db:seed": "pnpm build && node dist/database/cli.js seed"
+    "db:seed": "pnpm build && node dist/database/cli.js seed",
+    "db:admin": "pnpm build && node dist/database/admin-cli.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1163.0",

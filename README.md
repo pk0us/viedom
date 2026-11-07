@@ -34,6 +34,7 @@ pnpm smoke:mail
 pnpm smoke:auth
 pnpm smoke:listings
 pnpm smoke:owner
+pnpm smoke:admin
 pnpm smoke:media
 ```
 
@@ -60,3 +61,15 @@ The browser loads MapLibre only inside the editor. `PUBLIC_MAP_STYLE_URL` select
 `pnpm smoke:owner` builds the frontend and tests draft persistence, conflicts, owner isolation, pagination/actions, unsaved changes, map fallback and responsive accessibility with Chrome and the separate local test database. Like the auth smoke, it owns the application ports and removes only its synthetic records. `pnpm smoke:local` and `pnpm smoke:ui` include it.
 
 The media API supports private JPEG/PNG/WebP uploads, sanitized WebP derivatives, gallery order/cover selection and deletion. The editor supports upload progress, processing, retry/replacement, order, cover selection and deletion. Local Garage uses `http://127.0.0.1:3900` with persistent metadata/data volumes. `pnpm infra:up` initializes its private bucket and CORS, generates an application key and fills only empty storage credentials in `.env`; later startups preserve them. Public image delivery goes through the API's current publication checks. See [media limits, contracts and recovery](docs/media.md). `pnpm smoke:media` exercises real Garage/Mongo uploads, validation, authorization, retries and cleanup; the full local smoke also verifies object persistence across normal service restarts.
+
+Administrators review submissions at [the moderation dashboard](http://localhost:4200/admin/listings). Approval and rejection require the submitted version, and rejection requires a reason shown to the owner. The API records each decision atomically with the listing change. Administrators cannot decide their own submissions. Approval lasts 90 days and still requires current publisher, listing and photo eligibility.
+
+To provision the first local administrator, register and verify the intended account through the normal flow, then obtain its account ID from the authenticated `GET /api/me` response. An operator with local database access runs the following command with that exact account ID and normalized email:
+
+```powershell
+pnpm db:admin ACCOUNT_ID normalized-email@example.test --acknowledge-admin-access
+```
+
+This explicit local procedure promotes an existing active verified USER, refuses an existing real administrator, and never accepts role grants through registration. It does not create passwords or alter environment values. Use `--test` only for the separate test database. Sign in again after provisioning. The seeded passwordless fixture administrator is not a usable login account. Deployment provisioning remains an operator procedure for the deployment phase.
+
+Run `pnpm db:indexes` to provision the additional moderation collections and indexes. `pnpm smoke:admin` checks the administrative API and the Chrome moderation journey against existing local MongoDB/Garage and the separate test database; stop other application processes first. See [moderation contracts and acceptance](docs/moderation.md).

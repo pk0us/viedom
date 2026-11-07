@@ -7,6 +7,9 @@
   <aside>
     <p class="eyebrow">Your workspace</p>
     <nav aria-label="Owner navigation">
+      @if (session.user()?.role === 'ADMIN') {
+        <a routerLink="/admin/listings">Review listings <span aria-hidden="true">→</span></a>
+      }
       <a
         routerLink="/owner"
         routerLinkActive="active"

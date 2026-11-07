@@ -131,6 +131,7 @@ export interface OwnerListingSummary extends ListingContent {
   status: ListingStatus;
   moderationHold: boolean;
   submittedVersion: number | null;
+  rejectionReason?: string | null;
   publishedAt: string | null;
   expiresAt: string | null;
   createdAt: string;
@@ -143,6 +144,41 @@ export interface OwnerListingDetail extends OwnerListingSummary {
 export interface OwnerListingsResponse {
   items: OwnerListingSummary[];
   nextCursor: string | null;
+}
+
+export interface RejectListingRequest extends VersionRequest {
+  reason: string;
+}
+export type AdminListingsResponse = OwnerListingsResponse;
+export interface AdminModerationEvent {
+  id: string;
+  reviewerId: string;
+  reviewedVersion: number;
+  resultVersion: number;
+  decision: 'approved' | 'rejected';
+  reason: string | null;
+  createdAt: string;
+}
+export interface AdminListingDetail {
+  listing: OwnerListingDetail;
+  publisher: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    emailVerified: boolean;
+    active: boolean;
+  };
+  media: OwnerMediaGallery;
+  canDecide: boolean;
+  canApprove: boolean;
+  history: AdminModerationEvent[];
+}
+export interface AdminDecisionResponse {
+  id: string;
+  version: number;
+  status: 'published' | 'rejected';
+  rejectionReason: string | null;
 }
 
 export interface ListingPreviewContent extends ListingContent {

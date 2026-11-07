@@ -1,9 +1,11 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpContextToken, HttpErrorResponse } from '@angular/common/http';
 import type { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { catchError, from, switchMap, throwError } from 'rxjs';
 import { publicConfig } from '../../../generated/public-config';
 import { AuthSession } from './auth-session';
+
+export const skipAuthRetry = new HttpContextToken(() => false);
 
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const base = publicConfig.apiBaseUrl.replace(/\/$/, '');
@@ -25,7 +27,12 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
         });
       return next(authorized(token)).pipe(
         catchError((error: unknown) => {
-          if (!(error instanceof HttpErrorResponse) || error.status !== 401 || !token)
+          if (
+            !(error instanceof HttpErrorResponse) ||
+            error.status !== 401 ||
+            !token ||
+            request.context.get(skipAuthRetry)
+          )
             return throwError(() => error);
           return from(session.renew(token, generation)).pipe(
             switchMap((renewed) =>

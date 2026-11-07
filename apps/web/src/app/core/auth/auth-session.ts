@@ -36,7 +36,7 @@ export class AuthSession {
       this.channel.onmessage = ({ data }: MessageEvent<unknown>) => {
         if (data !== 'changed' && data !== 'signed-out') return;
         this.clear();
-        if (this.router.url.startsWith('/owner')) {
+        if (/^\/(owner|admin)(\/|$)/.test(this.router.url)) {
           void this.router.navigate(['/auth/login'], {
             queryParams: { returnUrl: this.router.url }
           });
@@ -60,7 +60,7 @@ export class AuthSession {
   invalidate(rejected?: string): void {
     if (rejected !== undefined && rejected !== this.accessToken) return;
     this.clear();
-    if (this.router.url.startsWith('/owner')) {
+    if (/^\/(owner|admin)(\/|$)/.test(this.router.url)) {
       void this.router.navigate(['/auth/login'], { queryParams: { returnUrl: this.router.url } });
     }
   }

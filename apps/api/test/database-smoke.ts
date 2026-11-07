@@ -1,18 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
-import { MikroORM } from '@mikro-orm/mongodb';
 import { loadConfig } from '../../../scripts/config.mjs';
+import { initializeOrm, ormOptions } from '../src/database/orm-options.js';
 
 const config = loadConfig();
 if (config.mode === 'production') throw new Error('Database smoke refuses production.');
-const orm = await MikroORM.init({
-  clientUrl: config.mongo.testUri,
-  dbName: config.mongo.testDbName,
+const options = {
+  ...ormOptions(config.mongo.testUri, config.mongo.testDbName),
   entities: [],
   discovery: { warnWhenNoEntities: false },
-  logger: () => undefined,
   driverOptions: { serverSelectionTimeoutMS: 5000 }
-});
+};
+const orm = await initializeOrm(options);
 const connection = orm.em.getConnection();
 const client = connection.getClient();
 const db = connection.getDb();

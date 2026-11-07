@@ -1,4 +1,5 @@
-import { MongoDriver } from '@mikro-orm/mongodb';
+import { MikroORM, MongoDriver } from '@mikro-orm/mongodb';
+import type { Options } from '@mikro-orm/mongodb';
 import { entities } from './entities.js';
 import { DomainSubscriber } from './domain-subscriber.js';
 
@@ -15,4 +16,9 @@ export function ormOptions(clientUrl: string, dbName: string) {
     // One host-run OLTP process; retain pool defaults until measured.
     driverOptions: { serverSelectionTimeoutMS: 3000, connectTimeoutMS: 3000 }
   };
+}
+
+export function initializeOrm(options: Options): Promise<MikroORM> {
+  const initialize = MikroORM.init as (configuration: Options) => Promise<MikroORM>;
+  return initialize.call(MikroORM, options);
 }

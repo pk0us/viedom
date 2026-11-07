@@ -82,6 +82,12 @@ button[nz-button] {
   min-height: 44px;
   height: auto;
   white-space: normal;
+  transition: none;
+}
+button.ant-btn-dangerous:not([disabled]) {
+  color: t.$danger;
+  background: t.$surface;
+  border-color: t.$danger;
 }
 .cover-badge {
   display: inline-block;

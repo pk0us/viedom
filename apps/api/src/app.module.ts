@@ -5,9 +5,10 @@ import { PropertiesModule } from './properties/properties.module.js';
 import { ListingsModule } from './listings/listings.module.js';
 import { MediaModule } from './media/media.module.js';
 import { OpenApiController } from './openapi.js';
+import { AdminModule } from './admin/admin.module.js';
 
 @Module({
-  imports: [HealthModule, AuthModule, PropertiesModule, ListingsModule, MediaModule],
+  imports: [HealthModule, AuthModule, PropertiesModule, ListingsModule, MediaModule, AdminModule],
   controllers: [OpenApiController]
 })
 export class AppModule {}

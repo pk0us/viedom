@@ -21,7 +21,7 @@ import { AuthActions } from '../src/auth/auth.actions.js';
 import { AuthService } from '../src/auth/auth.service.js';
 import { AuthStore } from '../src/auth/auth.store.js';
 import { localTarget } from '../src/database/local-target.js';
-import { ormOptions } from '../src/database/orm-options.js';
+import { initializeOrm, ormOptions } from '../src/database/orm-options.js';
 import { provision } from '../src/database/provision.js';
 import { Listing, User } from '../src/database/entities.js';
 import { PropertiesModule } from '../src/properties/properties.module.js';
@@ -173,7 +173,7 @@ async function published(id: string) {
 
 beforeAll(async () => {
   const target = localTarget(config, true);
-  orm = await MikroORM.init(ormOptions(target.uri, target.dbName));
+  orm = await initializeOrm(ormOptions(target.uri, target.dbName));
   await provision(orm);
   const testing = await Test.createTestingModule({
     imports: [AuthModule, PropertiesModule, ListingsModule, MediaModule]

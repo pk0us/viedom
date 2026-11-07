@@ -23,6 +23,17 @@
     <p class="notice" role="status">This listing is archived and cannot be edited.</p>
   }
   @if (detail(); as listing) {
+    @if (listing.status === 'rejected') {
+      <section class="notice" aria-label="Review feedback">
+        <h2>Changes requested</h2>
+        <p>
+          {{
+            listing.rejectionReason || 'Review and update this listing before submitting it again.'
+          }}
+        </p>
+        <p>Save your changes, check the private preview, then submit for a new review.</p>
+      </section>
+    }
     <p class="notice">
       Status: {{ listing.status.replace('_', ' ') }}. Saving reviewed listing content withdraws it
       to draft for a new review. Changing the property details withdraws all its non-archived

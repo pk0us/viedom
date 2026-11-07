@@ -2,7 +2,7 @@ import { MikroORM, ObjectId } from '@mikro-orm/mongodb';
 import { wrap } from '@mikro-orm/core';
 import { loadConfig } from '../../../scripts/config.mjs';
 import { localTarget } from '../src/database/local-target.js';
-import { ormOptions } from '../src/database/orm-options.js';
+import { initializeOrm, ormOptions } from '../src/database/orm-options.js';
 import { provision } from '../src/database/provision.js';
 import { fixtures, seed } from '../src/database/fixtures.js';
 import { Listing, Property, User } from '../src/database/entities.js';
@@ -49,7 +49,7 @@ for (const user of collision.users) {
 
 beforeAll(async () => {
   const target = localTarget(loadConfig(), true);
-  orm = await MikroORM.init(ormOptions(target.uri, target.dbName));
+  orm = await initializeOrm(ormOptions(target.uri, target.dbName));
   snapshots = new PropertySnapshots(orm);
   await provision(orm);
 });

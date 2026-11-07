@@ -1,9 +1,33 @@
 import type { Routes } from '@angular/router';
-import { sessionGuard } from './core/auth/auth-guards';
+import { adminGuard, sessionGuard } from './core/auth/auth-guards';
 
 export const routes: Routes = [
-  // Reserved and fail-closed until server authorization and admin UI exist.
-  { path: 'admin', canMatch: [() => false], children: [] },
+  {
+    path: 'admin',
+    canActivate: [adminGuard],
+    canActivateChild: [adminGuard],
+    data: { noindex: true },
+    loadComponent: () => import('./features/admin/admin-layout').then((m) => m.AdminLayout),
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        redirectTo: 'listings'
+      },
+      {
+        path: 'listings',
+        title: 'Pending review · Viedom',
+        loadComponent: () =>
+          import('./features/admin/admin-moderation').then((m) => m.AdminModeration)
+      },
+      {
+        path: 'listings/:id',
+        title: 'Review listing · Viedom',
+        loadComponent: () =>
+          import('./features/admin/admin-moderation').then((m) => m.AdminModeration)
+      }
+    ]
+  },
   {
     path: 'owner',
     canActivate: [sessionGuard],

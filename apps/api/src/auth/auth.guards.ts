@@ -16,7 +16,7 @@ import { currentUser } from './auth.service.js';
 import type { CurrentUser } from '@viedom/contracts';
 import type { Request } from 'express';
 
-export type AuthRequest = Request & { user: CurrentUser };
+export type AuthRequest = Request & { user: CurrentUser; authSessionId?: string };
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
@@ -29,10 +29,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       algorithms: ['HS256'],
       issuer: 'viedom-api',
       audience: 'viedom-web',
-      ignoreExpiration: false
+      ignoreExpiration: false,
+      passReqToCallback: true
     });
   }
-  async validate(payload: unknown): Promise<CurrentUser> {
+  async validate(request: AuthRequest, payload: unknown): Promise<CurrentUser> {
     if (
       !payload ||
       typeof payload !== 'object' ||
@@ -48,9 +49,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       !/^[a-f0-9]{24}$/.test(payload.sid)
     )
       throw new UnauthorizedException();
-    return currentUser(
+    const user = currentUser(
       await this.store.current(new ObjectId(payload.sub), new ObjectId(payload.sid))
     );
+    request.authSessionId = payload.sid;
+    return user;
   }
 }
 @Injectable()

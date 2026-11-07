@@ -65,7 +65,7 @@ export class ListingPhoto {
   private readonly session = inject(AuthSession);
   private readonly account = computed(() => {
     const user = this.session.user();
-    return user ? `${user.id}:${this.session.identityVersion()}` : '';
+    return user ? `${user.id}:${user.role}:${this.session.identityVersion()}` : '';
   });
   private readonly browser = isPlatformBrowser(inject(PLATFORM_ID));
 
@@ -93,6 +93,7 @@ export class ListingPhoto {
           if (
             abort.signal.aborted ||
             identity !== this.session.identityVersion() ||
+            account !== this.account() ||
             !this.session.user()
           )
             return;
