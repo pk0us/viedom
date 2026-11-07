@@ -88,6 +88,8 @@ export async function checkShell(page, origin, apiBaseUrl) {
   await expect(menu).toHaveAttribute('aria-expanded', 'true');
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Search', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: 'Owner workspace', exact: true })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(

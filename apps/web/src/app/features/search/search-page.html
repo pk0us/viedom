@@ -1,0 +1,323 @@
+<section class="search-page" aria-labelledby="search-heading">
+  <div class="search-intro">
+    <div>
+      <p class="eyebrow">Explore the neighbourhood</p>
+      <h1 id="search-heading" tabindex="-1">Find a place in {{ city }}</h1>
+      <p>Move the map to explore. Every location is approximate.</p>
+    </div>
+    <button type="button" (click)="resetArea()">Back to {{ city }}</button>
+  </div>
+
+  @if (urlNotice()) {
+    <p role="status">
+      Some saved search settings were invalid. Supported settings have been restored.
+    </p>
+  }
+
+  <form class="filters" (submit)="applyFilters($event)" aria-label="Search filters" novalidate>
+    <div class="field">
+      <label for="filter-transactionType">Transaction</label>
+      <select id="filter-transactionType" [formField]="fields.transactionType">
+        <option value="">Rent or buy</option>
+        <option value="rent">Rent</option>
+        <option value="sale">Buy</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="filter-propertyType">Property type</label>
+      <select id="filter-propertyType" [formField]="fields.propertyType">
+        <option value="">All types</option>
+        <option value="apartment">Apartment</option>
+        <option value="house">House</option>
+        <option value="studio">Studio</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="filter-minPrice">Minimum price (€)</label>
+      <input
+        id="filter-minPrice"
+        inputmode="decimal"
+        [formField]="fields.minPrice"
+        [attr.aria-invalid]="filterErrors().minPrice ? 'true' : null"
+        aria-describedby="filter-minPrice-error"
+      />
+      <span id="filter-minPrice-error" class="field-error">{{ filterErrors().minPrice }}</span>
+    </div>
+    <div class="field">
+      <label for="filter-maxPrice">Maximum price (€)</label>
+      <input
+        id="filter-maxPrice"
+        inputmode="decimal"
+        [formField]="fields.maxPrice"
+        [attr.aria-invalid]="filterErrors().maxPrice ? 'true' : null"
+        aria-describedby="filter-maxPrice-error"
+      />
+      <span id="filter-maxPrice-error" class="field-error">{{ filterErrors().maxPrice }}</span>
+    </div>
+    <div class="field">
+      <label for="filter-minBedrooms">Minimum bedrooms</label>
+      <input
+        id="filter-minBedrooms"
+        inputmode="numeric"
+        [formField]="fields.minBedrooms"
+        [attr.aria-invalid]="filterErrors().minBedrooms ? 'true' : null"
+        aria-describedby="filter-minBedrooms-error"
+      />
+      <span id="filter-minBedrooms-error" class="field-error">{{
+        filterErrors().minBedrooms
+      }}</span>
+    </div>
+    <div class="field">
+      <label for="filter-minAreaM2">Minimum area (m²)</label>
+      <input
+        id="filter-minAreaM2"
+        inputmode="decimal"
+        [formField]="fields.minAreaM2"
+        [attr.aria-invalid]="filterErrors().minAreaM2 ? 'true' : null"
+        aria-describedby="filter-minAreaM2-error"
+      />
+      <span id="filter-minAreaM2-error" class="field-error">{{ filterErrors().minAreaM2 }}</span>
+    </div>
+    <div class="filter-actions">
+      <button class="primary" type="submit">Apply filters</button
+      ><button type="button" (click)="clearFilters()">Clear filters</button>
+    </div>
+    @if (invalidFilter()) {
+      <p role="alert" class="field-error">Check the highlighted filters.</p>
+    }
+  </form>
+
+  <details class="area-controls">
+    <summary>Search area · keyboard controls</summary>
+    <p>
+      Use longitude and latitude bounds to search without the map. Each span can be at most one
+      degree.
+    </p>
+    <form (submit)="updateArea($event)" class="area-form" novalidate>
+      <div class="field">
+        <label for="area-west">West</label
+        ><input
+          id="area-west"
+          inputmode="decimal"
+          [formField]="areaFields.west"
+          aria-describedby="area-error"
+        />
+      </div>
+      <div class="field">
+        <label for="area-south">South</label
+        ><input
+          id="area-south"
+          inputmode="decimal"
+          [formField]="areaFields.south"
+          aria-describedby="area-error"
+        />
+      </div>
+      <div class="field">
+        <label for="area-east">East</label
+        ><input
+          id="area-east"
+          inputmode="decimal"
+          [formField]="areaFields.east"
+          aria-describedby="area-error"
+        />
+      </div>
+      <div class="field">
+        <label for="area-north">North</label
+        ><input
+          id="area-north"
+          inputmode="decimal"
+          [formField]="areaFields.north"
+          aria-describedby="area-error"
+        />
+      </div>
+      <button type="submit">Update search area</button>
+      <p id="area-error" class="field-error" [attr.role]="areaError() ? 'alert' : null">
+        {{ areaError() }}
+      </p>
+    </form>
+  </details>
+
+  <div class="mobile-switch" role="group" aria-label="Results view">
+    <button
+      type="button"
+      [attr.aria-pressed]="mobileView() === 'list'"
+      (click)="mobileView.set('list')"
+    >
+      Show list
+    </button>
+    <button
+      #mapToggle
+      id="show-map-view"
+      type="button"
+      [attr.aria-pressed]="mobileView() === 'map'"
+      (click)="mobileView.set('map')"
+    >
+      Show map
+    </button>
+  </div>
+
+  @if (oversized()) {
+    <div class="guidance" role="status">
+      <p>
+        Zoom in to search an area up to one degree wide and high. Areas crossing the date line are
+        not supported.
+      </p>
+      <button type="button" (click)="zoomIn()">Zoom in to search</button>
+    </div>
+  }
+  @if (state.capped()) {
+    <div class="guidance" role="status">
+      <p>
+        The map shows up to 500 approximate locations. Zoom in for more map prices. Browse more
+        homes in the list to see matching results beyond this map limit.
+      </p>
+      <button type="button" (click)="zoomIn()">Zoom in for more map prices</button>
+    </div>
+  }
+  @if (state.markerError()) {
+    <p role="alert">
+      {{ state.markerError() }} <button type="button" (click)="state.retry()">Retry search</button>
+    </p>
+  }
+  @if (mapFailed()) {
+    <p role="status">
+      Map tiles are unavailable. The list, filters and keyboard search area controls still work.
+    </p>
+  }
+
+  <div class="results-layout" [class.mobile-map]="mobileView() === 'map'">
+    <section
+      class="list-panel"
+      aria-labelledby="results-heading"
+      [attr.aria-busy]="state.loading() || state.paging()"
+    >
+      <div class="results-heading">
+        <h2 id="results-heading">Homes in this area</h2>
+        <span>{{ state.cards().length }} loaded</span>
+      </div>
+      <p class="result-note">Newest published first · Locations are approximate</p>
+      @if (state.loading()) {
+        <app-ui-state kind="loading" heading="Finding homes" description="Searching this area…" />
+      } @else if (state.cardError()) {
+        <app-ui-state
+          kind="error"
+          heading="Search unavailable"
+          [description]="state.cardError()"
+          retryLabel="Retry search"
+          (retry)="state.retry()"
+        />
+      } @else if (!oversized() && state.cards().length === 0) {
+        <app-ui-state
+          kind="empty"
+          heading="No homes found"
+          description="Try another area or broaden your filters."
+        />
+      }
+      @if (state.selectedMarker(); as selected) {
+        @if (!state.selectedCard()) {
+          <aside class="selection-summary" aria-label="Selected map location" role="status">
+            <strong
+              >Selected home · {{ selected.priceMinor | price
+              }}{{ selected.transactionType === 'rent' ? ' / month' : '' }}</strong
+            >
+            <p>
+              Approximate location. Its full card may be on a later page. Load more homes to find
+              it, or zoom in around this location.
+            </p>
+          </aside>
+        }
+      }
+      <div class="cards">
+        @for (card of state.cards(); track card.id) {
+          <article
+            class="home-card"
+            [class.selected]="state.selectedId() === card.id"
+            [id]="'home-' + card.id"
+            [attr.aria-labelledby]="'title-' + card.id"
+          >
+            <div class="photo">
+              @if (!brokenImages().has(card.id)) {
+                <img
+                  [src]="card.coverImage.url"
+                  alt=""
+                  [width]="card.coverImage.width"
+                  [height]="card.coverImage.height"
+                  loading="lazy"
+                  decoding="async"
+                  (error)="imageFailed(card.id)"
+                />
+              } @else {
+                <span>Photo unavailable</span>
+              }
+              <span class="transaction">{{
+                card.transactionType === 'rent' ? 'For rent' : 'For sale'
+              }}</span>
+            </div>
+            <div class="card-copy">
+              <p class="price">
+                {{ card.priceMinor | price
+                }}<span>{{ card.transactionType === 'rent' ? ' / month' : '' }}</span>
+              </p>
+              <h3 [id]="'title-' + card.id">{{ card.title }}</h3>
+              <p>
+                {{ card.neighborhood ? card.neighborhood + ', ' : '' }}{{ card.city }} · Approximate
+                location
+              </p>
+              <p class="features">
+                {{ card.propertyType }} · {{ card.areaM2 | area }} · {{ card.bedrooms }} bedrooms ·
+                {{ card.bathrooms }} bathrooms
+              </p>
+              <button
+                type="button"
+                [attr.aria-pressed]="state.selectedId() === card.id"
+                [attr.aria-label]="'Show ' + card.title + ' on map'"
+                (click)="showOnMap(card.id)"
+              >
+                Show on map
+              </button>
+            </div>
+          </article>
+        }
+      </div>
+      @if (state.pageError()) {
+        <p role="alert">{{ state.pageError() }}</p>
+      }
+      @if (state.nextCursor()) {
+        <button
+          class="load-more"
+          type="button"
+          [disabled]="state.paging()"
+          (click)="state.loadMore()"
+        >
+          Load more homes
+        </button>
+      }
+      <p class="results-status" role="status" aria-live="polite">
+        {{
+          state.paging()
+            ? 'Loading more homes…'
+            : state.loading()
+              ? 'Updating search…'
+              : state.cards().length + ' homes loaded.'
+        }}
+      </p>
+    </section>
+    <section class="map-panel" aria-label="Approximate property locations">
+      <app-search-map
+        [bounds]="bounds()"
+        [markers]="state.mapMarkers()"
+        [selectedId]="state.selectedId()"
+        [visible]="!smallScreen() || mobileView() === 'map'"
+        (boundsChange)="move($event)"
+        (selectListing)="select($event)"
+        (mapFailure)="mapFailed.set($event)"
+      />
+      <p class="map-note">
+        Approximate locations protect owners’ privacy. Select a price to highlight its home.
+      </p>
+      @if (state.markersLoading()) {
+        <p class="map-status" role="status">Updating map prices…</p>
+      }
+    </section>
+  </div>
+</section>

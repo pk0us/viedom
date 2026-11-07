@@ -30,6 +30,7 @@
     "smoke:owner": "node scripts/smoke-owner.mjs",
     "smoke:admin": "node scripts/smoke-admin.mjs",
     "smoke:search": "pnpm --filter @viedom/api exec vitest run --config vitest.search.config.ts",
+    "smoke:search:ui": "node scripts/smoke-search-ui.mjs",
     "smoke:media": "node scripts/smoke-media.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

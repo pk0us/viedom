@@ -1,0 +1,125 @@
+@use '../../../styles/variables' as v;
+
+.search-map {
+  position: relative;
+  display: block;
+  min-width: 0;
+
+  &[hidden] {
+    display: none;
+  }
+
+  &__surface {
+    width: 100%;
+    height: min(68vh, 740px);
+    min-height: 360px;
+    overflow: hidden;
+    background: v.$canvas;
+    border: 1px solid v.$border;
+    border-radius: v.$radius;
+  }
+
+  &__controls {
+    position: absolute;
+    inset: v.$space-4 v.$space-4 auto auto;
+    z-index: 4;
+    display: grid;
+    gap: v.$space-1;
+
+    button {
+      width: 44px;
+      font-size: 26px;
+      line-height: 1;
+    }
+  }
+
+  :where(button) {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 12px;
+    color: v.$text;
+    background: v.$surface;
+    border: 1px solid v.$muted;
+    border-radius: 8px;
+    cursor: pointer;
+
+    &:hover {
+      background: v.$brand-soft;
+      border-color: v.$brand;
+    }
+
+    &:focus-visible {
+      outline: 3px solid v.$brand;
+      outline-offset: 3px;
+    }
+  }
+
+  &__price,
+  &__cluster {
+    box-shadow: 0 2px 8px #172b4233;
+    font-weight: 700;
+  }
+
+  &__price {
+    white-space: nowrap;
+
+    &.is-selected {
+      color: v.$surface;
+      background: v.$brand;
+      border: 3px solid v.$text;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+  }
+
+  &__cluster {
+    border-radius: 50%;
+    color: v.$surface;
+    background: v.$brand;
+    border: 3px solid v.$surface;
+
+    &:hover {
+      color: v.$text;
+      background: v.$brand-soft;
+    }
+  }
+
+  &__notice {
+    position: absolute;
+    inset: v.$space-4 76px auto v.$space-4;
+    z-index: 4;
+    margin: 0;
+    padding: v.$space-4;
+    color: v.$text;
+    background: v.$surface;
+    border: 1px solid v.$border;
+    border-radius: 8px;
+
+    p {
+      margin-block: 0 v.$space-3;
+    }
+
+    &--failure {
+      inset-inline-end: v.$space-4;
+    }
+  }
+
+  &__help {
+    margin-block: v.$space-3 0;
+    color: v.$muted;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .maplibregl-ctrl-attrib-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .search-map__surface {
+    height: 58vh;
+    min-height: 320px;
+  }
+}

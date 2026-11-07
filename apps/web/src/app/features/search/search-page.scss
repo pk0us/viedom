@@ -1,0 +1,264 @@
+@use '../../../styles/variables' as t;
+
+:host {
+  display: block;
+}
+.search-page {
+  max-width: 1440px;
+  margin: auto;
+  padding: 32px 24px;
+}
+.search-intro,
+.results-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+h1 {
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  margin: 0 0 8px;
+}
+h2 {
+  font-size: 1.2rem;
+  margin: 0;
+}
+p {
+  margin: 8px 0;
+}
+button,
+input,
+select {
+  min-height: 44px;
+  border: 1px solid t.$border;
+  border-radius: 8px;
+  font: inherit;
+  background: t.$surface;
+  color: t.$text;
+  padding: 8px 12px;
+}
+button,
+summary {
+  cursor: pointer;
+}
+button:hover,
+button[aria-pressed='true'] {
+  border-color: t.$brand;
+  background: t.$brand-soft;
+}
+button:disabled {
+  color: t.$muted;
+  cursor: wait;
+}
+.primary {
+  background: t.$brand;
+  color: white;
+  border-color: t.$brand;
+}
+.primary:hover {
+  background: #003e8a;
+  color: white;
+}
+.filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+  padding: 24px;
+  margin: 24px 0 12px;
+  border: 1px solid t.$border;
+  border-radius: 12px;
+  background: t.$surface;
+}
+.field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.field label {
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+input,
+select {
+  width: 100%;
+  min-width: 0;
+}
+.filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-self: end;
+  gap: 8px;
+  grid-column: span 2;
+}
+.field-error {
+  color: t.$danger;
+  font-size: 0.85rem;
+}
+.field-error:empty {
+  display: none;
+}
+.area-controls {
+  padding: 8px 0 16px;
+}
+summary {
+  min-height: 44px;
+  padding: 10px 0;
+  color: t.$brand;
+  font-weight: 600;
+}
+.area-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+.area-form .field {
+  flex: 1 1 110px;
+}
+.area-form p {
+  flex-basis: 100%;
+}
+.guidance,
+.selection-summary {
+  background: t.$brand-soft;
+  padding: 16px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+}
+.mobile-switch {
+  display: none;
+}
+.results-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  align-items: start;
+  gap: 24px;
+}
+.list-panel,
+.map-panel {
+  min-width: 0;
+}
+.map-panel {
+  position: sticky;
+  top: 16px;
+}
+.result-note,
+.results-heading span,
+.map-note,
+.results-status {
+  color: t.$muted;
+  font-size: 0.85rem;
+}
+.cards {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+.home-card {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(0, 1fr);
+  background: t.$surface;
+  border: 2px solid t.$border;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.home-card.selected {
+  border-color: t.$brand;
+  box-shadow: 0 0 0 2px t.$brand-soft;
+}
+.photo {
+  position: relative;
+  min-height: 200px;
+  background: #e8edf3;
+  display: grid;
+  place-items: center;
+  color: t.$muted;
+}
+.photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+}
+.transaction {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: t.$surface;
+  font-size: 0.8rem;
+  color: t.$text;
+}
+.card-copy {
+  padding: 16px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.card-copy h3 {
+  font-size: 1rem;
+  margin: 8px 0;
+}
+.card-copy p {
+  font-size: 0.85rem;
+}
+.card-copy .price {
+  font-size: 1.3rem;
+  font-weight: 750;
+  margin: 0;
+}
+.price span {
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+.features {
+  text-transform: capitalize;
+  color: t.$muted;
+}
+.load-more {
+  width: 100%;
+  margin-top: 16px;
+}
+@media (max-width: 1100px) {
+  .home-card {
+    grid-template-columns: 1fr;
+  }
+  .photo {
+    min-height: 180px;
+  }
+}
+@media (max-width: 767px) {
+  .search-page {
+    padding: 24px 16px;
+  }
+  .search-intro {
+    align-items: start;
+    flex-direction: column;
+  }
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 16px;
+  }
+  .mobile-switch {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .mobile-switch button {
+    flex: 1;
+  }
+  .results-layout {
+    display: block;
+  }
+  .map-panel {
+    display: none;
+    position: static;
+  }
+  .mobile-map .map-panel {
+    display: block;
+  }
+  .mobile-map .list-panel {
+    display: none;
+  }
+}

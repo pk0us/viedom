@@ -26,6 +26,7 @@ export class App {
 
   constructor() {
     let initialNavigation = true;
+    let previousPath = '';
     this.router.events
       .pipe(
         filter((event) => event instanceof NavigationEnd),
@@ -43,7 +44,11 @@ export class App {
           name: 'robots',
           content: noindex ? 'noindex, nofollow' : 'index, follow'
         });
-        if (!initialNavigation) {
+        const path = event.urlAfterRedirects.split(/[?#]/)[0] ?? '';
+        if (
+          !initialNavigation &&
+          (path !== previousPath || this.router.parseUrl(event.urlAfterRedirects).fragment)
+        ) {
           afterNextRender(
             () => {
               const fragment = this.router.parseUrl(event.urlAfterRedirects).fragment;
@@ -56,6 +61,7 @@ export class App {
           );
         }
         initialNavigation = false;
+        previousPath = path;
       });
   }
 

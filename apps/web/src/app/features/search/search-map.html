@@ -1,0 +1,20 @@
+<div class="search-map__surface" #map></div>
+@if (ready()) {
+  <div class="search-map__controls" role="group" aria-label="Map zoom">
+    <button type="button" aria-label="Zoom in" (click)="zoomIn()">+</button>
+    <button type="button" aria-label="Zoom out" (click)="zoomOut()">−</button>
+  </div>
+}
+@if (loading()) {
+  <p class="search-map__notice" role="status">Loading map… Property results remain available.</p>
+}
+@if (failed()) {
+  <div class="search-map__notice search-map__notice--failure" role="status">
+    <p>The map could not load. You can still browse and filter the property results.</p>
+    <button type="button" (click)="initialize()">Retry map</button>
+  </div>
+}
+<p class="search-map__help">
+  All pins show approximate locations. Select a price to find the property in the results. Select a
+  numbered cluster to zoom in.
+</p>

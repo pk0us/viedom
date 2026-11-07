@@ -43,6 +43,11 @@ export const routes: Routes = [
       import('./layouts/public-layout/public-layout').then((m) => m.PublicLayout),
     children: [
       {
+        path: 'search',
+        title: 'Find a home · Viedom',
+        loadComponent: () => import('./features/search/search-page').then((m) => m.SearchPage)
+      },
+      {
         path: 'auth',
         data: { noindex: true },
         loadChildren: () => import('./features/auth/auth.routes').then((m) => m.authRoutes)

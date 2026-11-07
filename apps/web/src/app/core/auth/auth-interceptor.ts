@@ -11,7 +11,8 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const base = publicConfig.apiBaseUrl.replace(/\/$/, '');
   if (
     !request.url.startsWith(`${base}/`) ||
-    /^\/(auth|health)(\/|$)/.test(request.url.slice(base.length))
+    /^\/(auth|health)(\/|$)/.test(request.url.slice(base.length)) ||
+    /^\/listings\/(search|markers)$/.test(request.url.slice(base.length))
   )
     return next(request);
   const session = inject(AuthSession);
