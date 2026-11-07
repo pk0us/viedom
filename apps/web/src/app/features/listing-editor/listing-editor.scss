@@ -143,6 +143,9 @@ button[nz-button],
 a[nz-button] {
   white-space: normal;
 }
+button[nz-button] {
+  transition: none;
+}
 @media (min-width: 640px) {
   .form-grid {
     grid-template-columns: 1fr 1fr;

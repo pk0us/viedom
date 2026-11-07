@@ -259,6 +259,10 @@ async function createDraft(page: Page): Promise<string> {
   await fillDraft(page);
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await browserExpect(page).toHaveURL(/\/owner\/listings\/[a-f0-9]{24}$/);
+  await browserExpect(
+    page.getByRole('heading', { name: 'Edit listing', exact: true })
+  ).toBeVisible();
+  await browserExpect(page.getByRole('button', { name: 'Save draft', exact: true })).toBeEnabled();
   return new URL(page.url()).pathname.split('/').at(-1)!;
 }
 
@@ -278,6 +282,13 @@ async function submitForModeration(page: Page, user: User, title: string): Promi
   );
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   expect((await saved).ok()).toBe(true);
+  await browserExpect(
+    page.getByText('Listing saved. You can reopen it from My listings.', { exact: true })
+  ).toBeVisible();
+  await browserExpect(page.getByLabel('Title (optional for drafts)', { exact: true })).toHaveValue(
+    title
+  );
+  await browserExpect(page.getByRole('button', { name: 'Save draft', exact: true })).toBeEnabled();
   const photos = page.getByRole('region', { name: 'Listing photos', exact: true });
   const picker = photos.getByLabel('Add photos', { exact: true });
   const file = await imageFile('moderation.jpg');
@@ -294,8 +305,9 @@ async function submitForModeration(page: Page, user: User, title: string): Promi
         response.request().method() === 'POST'
     );
     await picker.setInputFiles(file);
-    expect((await reservation).ok()).toBe(true);
-    expect((await completed).ok()).toBe(true);
+    const [reserved, complete] = await Promise.all([reservation, completed]);
+    expect(reserved.ok()).toBe(true);
+    expect(complete.ok()).toBe(true);
     await browserExpect(photos.getByText('Ready', { exact: true })).toHaveCount(1, {
       timeout: 25000
     });
@@ -306,7 +318,12 @@ async function submitForModeration(page: Page, user: User, title: string): Promi
         fullPage: true
       })
       .catch(() => undefined);
-    throw error;
+    const alerts = await page.getByRole('alert').allTextContents();
+    const galleryState = await photos.innerText();
+    throw new Error(
+      `Moderation photo upload failed. Alerts: ${JSON.stringify(alerts)}. Gallery: ${galleryState}`,
+      { cause: error }
+    );
   }
   const submit = page.getByRole('button', { name: 'Submit for review', exact: true });
   await browserExpect(submit).toBeEnabled();
@@ -433,6 +450,12 @@ it('completes real owner submissions through administrator moderation and owner 
     }
     releaseApproval();
     await browserExpect.poll(async () => (await detail(user, approvedId)).status).toBe('published');
+    await browserExpect(
+      adminPage.getByText('Listing approved and published.', { exact: true })
+    ).toBeVisible();
+    await browserExpect(
+      adminPage.getByRole('button', { name: 'Reload queue', exact: true })
+    ).toBeEnabled();
     expect(approvals).toBe(1);
     const approvedMedia = await gallery(user, approvedId);
     const publicImage = await fetch(
@@ -462,7 +485,36 @@ it('completes real owner submissions through administrator moderation and owner 
       fullPage: true
     });
     expect((await new AxeBuilder({ page: adminPage }).analyze()).violations).toEqual([]);
-    await adminPage.getByRole('button', { name: 'Confirm rejection', exact: true }).click();
+    try {
+      const rejected = adminPage.waitForResponse(
+        (response) =>
+          response.url().endsWith(`/admin/listings/${rejectedId}/reject`) &&
+          response.request().method() === 'POST'
+      );
+      await adminPage.getByRole('button', { name: 'Confirm rejection', exact: true }).click();
+      const response = await rejected;
+      expect(
+        response.status(),
+        `Rejection response status. Alerts: ${JSON.stringify(
+          await adminPage.getByRole('alert').allTextContents()
+        )}`
+      ).toBe(200);
+      await browserExpect(
+        adminPage.getByText('Listing rejected. The owner can see your feedback.', { exact: true })
+      ).toBeVisible();
+    } catch (error) {
+      await adminPage
+        .screenshot({
+          path: resolve(artifactDirectory, 'moderation-rejection-failed.png'),
+          fullPage: true
+        })
+        .catch(() => undefined);
+      const alerts = await adminPage.getByRole('alert').allTextContents();
+      throw new Error(
+        `Rejection was not confirmed. Alerts: ${JSON.stringify(alerts)}. Browser errors: ${JSON.stringify(errors)}`,
+        { cause: error }
+      );
+    }
     await browserExpect.poll(async () => (await detail(user, rejectedId)).status).toBe('rejected');
     const rejectedMedia = await gallery(user, rejectedId);
     expect(
@@ -978,6 +1030,13 @@ it('recovers a failed storage upload and keeps invalid processed images out of s
     await page.getByRole('button', { name: 'Preview saved listing', exact: true }).click();
     const preview: OwnerListingPreview = await (await previewResponse).json();
     expect(preview.content.media.items.map((item) => item.id)).toEqual([failed.items[0]!.id]);
+    const previewPanel = page.getByRole('region', {
+      name: 'Private listing preview',
+      exact: true
+    });
+    await browserExpect(previewPanel.getByRole('img')).toHaveCount(1);
+    await previewPanel.getByRole('button', { name: 'Close preview', exact: true }).click();
+    await browserExpect(previewPanel).toHaveCount(0);
     await photos.getByRole('button', { name: 'Delete photo 2', exact: true }).click();
     await browserExpect(photos.getByText(/^Photo failed:/)).toHaveCount(0);
     await browserExpect(

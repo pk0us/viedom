@@ -461,6 +461,9 @@
             type="button"
             [disabled]="blocked() || dirty() || reloadRequired() || !listing.submission.canSubmit"
             [nzLoading]="busy()"
+            [attr.aria-label]="
+              listing.status === 'paused' ? 'Request review to resume' : 'Submit for review'
+            "
             (click)="requestReview()"
           >
             <span>{{

@@ -178,6 +178,10 @@ export async function provision(orm: MikroORM): Promise<void> {
       { name: 'listing_decision_version_unique', unique: true }
     );
   await listings.createIndex({ publicLocation: '2dsphere' }, { name: 'public_location_geo' });
+  await listings.createIndex(
+    { status: 1, transactionType: 1, priceMinor: 1, publicLocation: '2dsphere' },
+    { name: 'public_search_geo' }
+  );
   await listings.createIndex({ status: 1, publishedAt: -1, _id: -1 }, { name: 'status_published' });
   await listings.createIndex(
     { publisherId: 1, createdAt: -1, _id: -1 },

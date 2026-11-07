@@ -105,16 +105,95 @@ function operation(
   };
 }
 const parameter = { name: 'id', in: 'path', required: true, schema: id };
+const searchParameters = [
+  ...['west', 'east', 'south', 'north'].map((name) => ({
+    name,
+    in: 'query',
+    required: true,
+    schema: {
+      type: 'number',
+      minimum: name === 'west' || name === 'east' ? -180 : -90,
+      maximum: name === 'west' || name === 'east' ? 180 : 90
+    },
+    description:
+      'Inclusive approximate-location bounds. Positive spans must be at most one degree per axis; antimeridian crossing is unsupported.'
+  })),
+  { name: 'transactionType', in: 'query', schema: listing.transactionType },
+  { name: 'propertyType', in: 'query', schema: property.type },
+  ...['minPrice', 'maxPrice'].map((name) => ({
+    name,
+    in: 'query',
+    schema: integer(0, 100_000_000_000),
+    description: 'Inclusive integer EUR cents. minPrice must not exceed maxPrice.'
+  })),
+  { name: 'minBedrooms', in: 'query', schema: integer(0, 100) },
+  { name: 'minAreaM2', in: 'query', schema: { type: 'number', minimum: 1, maximum: 100_000 } }
+];
+const publicMarker = {
+  id,
+  transactionType: listing.transactionType,
+  priceMinor: listing.priceMinor,
+  currency: listing.currency,
+  publicLocation: point,
+  locationPrecision: { const: 'approximate' }
+};
+function searchOperation(operationId: string, response: string, description: string) {
+  return {
+    operationId,
+    security: [],
+    description,
+    responses: {
+      '200': { description: 'Eligible public projection; no-store.', content: json(ref(response)) },
+      '400': {
+        description: 'Invalid, repeated or unknown query parameter or mismatched cursor.',
+        content: json(ref('ApiError'))
+      },
+      '503': {
+        description: 'Search exceeded its bounded execution budget. Retry a smaller viewport.',
+        content: json(ref('ApiError'))
+      }
+    }
+  };
+}
 export const openApiDocument = {
   openapi: '3.1.0',
   info: {
-    title: 'Viedom property, listing and administrative review API',
-    version: '0.12.0',
+    title: 'Viedom property, listing, administrative review and public search API',
+    version: '0.13.0',
     description:
       'Bearer authentication only; cookies do not authorize owner operations. PATCH replaces all editable content. Stale mutations conflict; clients must reload after 409. Original uploads are private. Processed images require owner authorization or current publication eligibility.'
   },
   servers: [{ url: '/api' }],
   paths: {
+    '/listings/search': {
+      get: {
+        ...searchOperation(
+          'searchPublishedListings',
+          'ListingSearch',
+          'Public cards use the same geographic, filter and current-publication eligibility rules as markers. Stable publication timestamp and ID descending ordering. Cursor is bound to bounds and filters. No exact count is returned.'
+        ),
+        parameters: [
+          ...searchParameters,
+          { name: 'limit', in: 'query', schema: { ...integer(1, 50), default: 20 } },
+          {
+            name: 'cursor',
+            in: 'query',
+            schema: { ...string(256, 1), pattern: '^[A-Za-z0-9_-]+$' },
+            description: 'Opaque continuation from nextCursor; reuse the same bounds and filters.'
+          }
+        ]
+      }
+    },
+    '/listings/markers': {
+      get: {
+        ...searchOperation(
+          'listPublishedMarkers',
+          'ListingMarkers',
+          'At most 500 minimal approximate-location markers. capped=true means more matching listings exist: zoom in and retain independently paginated cards. No exact count or server clusters; cursor and limit parameters are unsupported.'
+        ),
+        parameters: searchParameters
+      }
+    },
     '/admin/listings/pending': {
       get: {
         ...operation(
@@ -348,6 +427,29 @@ export const openApiDocument = {
   components: {
     securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
     schemas: {
+      PublicListingMarker: object(publicMarker),
+      PublicListingCard: object({
+        ...publicMarker,
+        title: listing.title,
+        slug: string(200),
+        propertyType: property.type,
+        areaM2: property.details.properties.areaM2,
+        bedrooms: property.details.properties.bedrooms,
+        bathrooms: property.details.properties.bathrooms,
+        city: string(100, 1),
+        neighborhood: string(100),
+        publishedAt: date,
+        coverImage: ref('MediaVariant')
+      }),
+      ListingSearch: object({
+        items: { type: 'array', maxItems: 50, items: ref('PublicListingCard') },
+        nextCursor: nullable(string(256, 1))
+      }),
+      ListingMarkers: object({
+        items: { type: 'array', maxItems: 500, items: ref('PublicListingMarker') },
+        capped: { type: 'boolean' },
+        limit: { const: 500 }
+      }),
       PropertyContent: object(property),
       UpdateProperty: object({ ...property, expectedVersion }),
       OwnerProperty: object({

@@ -146,6 +146,55 @@ export interface OwnerListingsResponse {
   nextCursor: string | null;
 }
 
+export interface SearchBounds {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+export interface ListingSearchFilters {
+  transactionType?: 'rent' | 'sale';
+  minPrice?: number;
+  maxPrice?: number;
+  minBedrooms?: number;
+  minAreaM2?: number;
+  propertyType?: PropertyType;
+}
+export interface ListingSearchQuery extends SearchBounds, ListingSearchFilters {
+  cursor?: string;
+  limit?: number;
+}
+export interface ListingMarkersQuery extends SearchBounds, ListingSearchFilters {}
+export interface PublicListingMarker {
+  id: string;
+  transactionType: 'rent' | 'sale';
+  priceMinor: number;
+  currency: 'EUR';
+  publicLocation: GeoPoint;
+  locationPrecision: 'approximate';
+}
+export interface PublicListingCard extends PublicListingMarker {
+  title: string;
+  slug: string;
+  propertyType: PropertyType;
+  areaM2: number;
+  bedrooms: number;
+  bathrooms: number;
+  city: string;
+  neighborhood: string;
+  publishedAt: string;
+  coverImage: MediaVariant;
+}
+export interface ListingSearchResponse {
+  items: PublicListingCard[];
+  nextCursor: string | null;
+}
+export interface ListingMarkersResponse {
+  items: PublicListingMarker[];
+  capped: boolean;
+  limit: number;
+}
+
 export interface RejectListingRequest extends VersionRequest {
   reason: string;
 }
