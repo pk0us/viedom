@@ -6,6 +6,7 @@ import { ListingMarkersQueryDto, ListingSearchQueryDto } from './search.dto.js';
 import {
   buildSearchPipeline,
   decodeSearchCursor,
+  decodeSitemapCursor,
   SearchService,
   searchFingerprint
 } from './search.service.js';
@@ -132,5 +133,69 @@ describe('search resource budget', () => {
     });
     expect(pipeline).toContainEqual({ $limit: 21 });
     expect(buildSearchPipeline(box, new Date(), 'markers')).toContainEqual({ $limit: 501 });
+  });
+});
+
+describe('public listing discovery', () => {
+  const configuration = {
+    values: {
+      public: { city: 'Thessaloniki' },
+      storage: { deliveryBaseUrl: 'https://viedom.example/api/media' }
+    }
+  } as Configuration;
+  const create = (rows: object[] = []) => {
+    const aggregate = vi.fn<
+      (pipeline: Record<string, unknown>[], options: object) => { toArray: () => Promise<object[]> }
+    >(() => ({ toArray: () => Promise.resolve(rows) }));
+    const orm = { em: { fork: () => ({ getCollection: () => ({ aggregate }) }) } };
+    return { aggregate, service: new SearchService(orm as unknown as MikroORM, configuration) };
+  };
+
+  it('rejects invalid and unavailable detail IDs identically without a private lookup', async () => {
+    const { service, aggregate } = create();
+    await expect(service.detail('not-an-id')).rejects.toMatchObject({ status: 404 });
+    expect(aggregate).not.toHaveBeenCalled();
+    await expect(service.detail('a'.repeat(24))).rejects.toMatchObject({ status: 404 });
+    expect(aggregate).toHaveBeenCalledWith(expect.any(Array), {
+      hint: '_id_',
+      maxTimeMS: 2000,
+      allowDiskUse: false
+    });
+  });
+
+  it('bounds recent launch-city and sitemap reads using the publication index', async () => {
+    const { service, aggregate } = create();
+    await expect(service.recent()).resolves.toEqual({ items: [] });
+    expect(aggregate.mock.calls[0]![0]).toContainEqual({ $limit: 6 });
+    expect(aggregate.mock.calls[0]![0][0]).toMatchObject({
+      $match: { city: 'Thessaloniki', status: 'published' }
+    });
+    await expect(service.sitemap()).resolves.toEqual({ items: [], nextCursor: null });
+    expect(aggregate.mock.calls[1]![0]).toContainEqual({ $limit: 1001 });
+    expect(aggregate).toHaveBeenLastCalledWith(expect.any(Array), {
+      hint: 'status_published',
+      maxTimeMS: 2000,
+      allowDiskUse: false
+    });
+  });
+
+  it('keeps timestamp-tied sitemap continuation bounded and distinct from search cursors', async () => {
+    const rows = Array.from({ length: 1001 }, (_, i) => ({
+      id: i.toString(16).padStart(24, '0'),
+      slug: 'synthetic',
+      publishedAt: new Date('2026-01-01T00:00:00Z')
+    }));
+    const { service } = create(rows);
+    const result = await service.sitemap();
+    expect(result.items).toHaveLength(1000);
+    expect(decodeSitemapCursor(result.nextCursor!)).toMatchObject({ date: rows[999]!.publishedAt });
+    expect(decodeSitemapCursor(result.nextCursor!).id.toHexString()).toBe(rows[999]!.id);
+    expect(() => decodeSearchCursor(result.nextCursor!, box)).toThrow(BadRequestException);
+    const searchCursor = Buffer.from(
+      JSON.stringify(['2026-01-01T00:00:00.000Z', rows[0]!.id, searchFingerprint(box)])
+    ).toString('base64url');
+    await expect(service.sitemap(searchCursor)).rejects.toBeInstanceOf(BadRequestException);
+    for (const invalid of ['', 'invalid', 'x'.repeat(257)])
+      expect(() => decodeSitemapCursor(invalid)).toThrow(BadRequestException);
   });
 });

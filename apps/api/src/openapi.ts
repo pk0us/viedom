@@ -159,7 +159,7 @@ export const openApiDocument = {
   openapi: '3.1.0',
   info: {
     title: 'Viedom property, listing, administrative review and public search API',
-    version: '0.13.0',
+    version: '0.15.0',
     description:
       'Bearer authentication only; cookies do not authorize owner operations. PATCH replaces all editable content. Stale mutations conflict; clients must reload after 409. Original uploads are private. Processed images require owner authorization or current publication eligibility.'
   },
@@ -192,6 +192,29 @@ export const openApiDocument = {
           'At most 500 minimal approximate-location markers. capped=true means more matching listings exist: zoom in and retain independently paginated cards. No exact count or server clusters; cursor and limit parameters are unsupported.'
         ),
         parameters: searchParameters
+      }
+    },
+    '/listings/recent': {
+      get: searchOperation(
+        'listRecentPublishedListings',
+        'RecentListingsResponse',
+        'At most six current eligible approved listings in the configured launch city, newest publication then ID first. Same current publisher, property and complete processed gallery eligibility as public search.'
+      )
+    },
+    '/listings/sitemap': {
+      get: {
+        ...searchOperation(
+          'listPublishedSitemapEntries',
+          'ListingSitemapResponse',
+          'Live publication-aware sitemap entries, at most 1000 per page, ordered by publication timestamp and ID descending. Withdrawn, expired, private and ineligible listings are omitted.'
+        ),
+        parameters: [
+          {
+            name: 'cursor',
+            in: 'query',
+            schema: { ...string(256, 1), pattern: '^[A-Za-z0-9_-]+$' }
+          }
+        ]
       }
     },
     '/admin/listings/pending': {
@@ -288,6 +311,17 @@ export const openApiDocument = {
     },
     '/listings/{id}': {
       parameters: [parameter],
+      get: {
+        ...searchOperation(
+          'readPublishedListing',
+          'PublicListingDetail',
+          'Anonymous approved content, ordered processed gallery and approximate location only. Current publisher, canonical property snapshots, expiry and complete media eligibility are rechecked for every read. Invalid, absent and nonpublic IDs return the same 404.'
+        ),
+        responses: {
+          ...searchOperation('readPublishedListing', 'PublicListingDetail', '').responses,
+          '404': { description: 'Listing unavailable publicly.', content: json(ref('ApiError')) }
+        }
+      },
       patch: operation(
         'updateOwnListing',
         'OwnerListingDetail',
@@ -440,6 +474,24 @@ export const openApiDocument = {
         neighborhood: string(100),
         publishedAt: date,
         coverImage: ref('MediaVariant')
+      }),
+      PublicListingDetail: object({
+        id,
+        slug: string(200),
+        publishedAt: date,
+        locationPrecision: { const: 'approximate' },
+        content: ref('ListingPreviewContent')
+      }),
+      RecentListingsResponse: object({
+        items: { type: 'array', maxItems: 6, items: ref('PublicListingCard') }
+      }),
+      ListingSitemapResponse: object({
+        items: {
+          type: 'array',
+          maxItems: 1000,
+          items: object({ id, slug: string(200), publishedAt: date })
+        },
+        nextCursor: nullable(string(256, 1))
       }),
       ListingSearch: object({
         items: { type: 'array', maxItems: 50, items: ref('PublicListingCard') },

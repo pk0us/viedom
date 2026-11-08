@@ -521,6 +521,15 @@ it('excludes every non-public listing, account and incomplete or foreign media s
   const expected = [valid.listing._id.toHexString()];
   expect((await page(box)).items.map((row) => row.id)).toEqual(expected);
   expect((await markers(box)).items.map((row) => row.id)).toEqual(expected);
+  expect((await fetch(`${base}/api/listings/${valid.listing._id}`)).status).toBe(200);
+  const unavailable = new Set(invalid.map(({ listing }) => listing._id.toHexString()));
+  for (const id of unavailable) {
+    const response = await fetch(`${base}/api/listings/${id}`);
+    expect(response.status, id).toBe(404);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  }
+  const sitemap = await (await fetch(`${base}/api/listings/sitemap`)).json();
+  expect(sitemap.items.some((item: { id: string }) => unavailable.has(item.id))).toBe(false);
 });
 
 it('returns explicit public projections without private addresses, locations, ownership, storage or account secrets', async () => {
@@ -790,3 +799,169 @@ it.runIf(process.env['VIEDOM_SEARCH_BENCHMARK'] === '1')(
     console.info('SEARCH_BENCHMARK_OUTPUT', fileURLToPath(output));
   }
 );
+
+it('projects public detail with ordered processed photos and no private location or publisher data', async () => {
+  const row = fixture(bounds(17));
+  row.listing.description = 'Synthetic public description for the detail page.';
+  const second = fixture(bounds(17));
+  second.asset.listingId = row.listing._id;
+  row.gallery.mediaIds = [second.asset._id.toHexString(), row.asset._id.toHexString()];
+  row.gallery.coverMediaId = second.asset._id.toHexString();
+  await save([row]);
+  await orm.em
+    .getConnection()
+    .getDb()
+    .collection('media_assets')
+    .insertOne({ ...second.asset });
+  const response = await fetch(`${base}/api/listings/${row.listing._id}`);
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  const detail = await response.json();
+  expect(Object.keys(detail).sort()).toEqual([
+    'content',
+    'id',
+    'locationPrecision',
+    'publishedAt',
+    'slug'
+  ]);
+  expect(detail).toMatchObject({
+    id: row.listing._id.toHexString(),
+    locationPrecision: 'approximate',
+    content: {
+      description: row.listing.description,
+      property: { publicLocation: row.listing.publicLocation }
+    }
+  });
+  expect(detail.content.media.items.map((item: { id: string }) => item.id)).toEqual(
+    row.gallery.mediaIds
+  );
+  expect(detail.content.media.coverMediaId).toBe(row.gallery.coverMediaId);
+  for (const item of detail.content.media.items) {
+    for (const name of ['large', 'thumbnail']) {
+      expect(item.variants[name].url).toBe(
+        `${config.storage.deliveryBaseUrl}/${row.listing._id}/${item.id}/${name}`
+      );
+      expect(Object.keys(item.variants[name]).sort()).toEqual([
+        'bytes',
+        'contentType',
+        'height',
+        'url',
+        'width'
+      ]);
+    }
+  }
+  const payload = JSON.stringify(detail);
+  for (const value of [
+    'privateLocation',
+    'street',
+    'ownerId',
+    'publisherId',
+    'reviewedById',
+    'originalKey',
+    'processingKeys',
+    'private-search-',
+    'PRIVATE',
+    owner.email,
+    owner.phone!
+  ])
+    expect(payload).not.toContain(value);
+  for (const id of ['not-an-id', new ObjectId().toHexString()]) {
+    const unavailable = await fetch(`${base}/api/listings/${id}`);
+    expect(unavailable.status).toBe(404);
+    expect((await unavailable.json()).error).toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'Resource not found.'
+    });
+  }
+  await orm.em
+    .getConnection()
+    .getDb()
+    .collection('listings')
+    .updateOne({ _id: row.listing._id }, { $set: { status: 'paused' } });
+  expect((await fetch(`${base}/api/listings/${row.listing._id}`)).status).toBe(404);
+});
+
+it('returns six newest approved launch-city cards and removes withdrawn and suspended publications', async () => {
+  const fixtures = Array.from({ length: 8 }, (_, index) =>
+    fixture(bounds(18), { publishedAt: new Date(Date.now() - 1000 - index * 1000) })
+  );
+  for (const row of fixtures) {
+    row.property.address.city = config.public.city;
+    row.listing.city = config.public.city;
+  }
+  const foreign = fixture(bounds(18), { publishedAt: new Date(Date.now() - 500) });
+  await save([...fixtures, foreign]);
+  const response = await fetch(`${base}/api/listings/recent`);
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  const recent = await response.json();
+  expect(recent.items.map((item: { id: string }) => item.id)).toEqual(
+    fixtures.slice(0, 6).map(({ listing }) => listing._id.toHexString())
+  );
+  await orm.em
+    .getConnection()
+    .getDb()
+    .collection('listings')
+    .updateOne({ _id: fixtures[0]!.listing._id }, { $set: { status: 'paused' } });
+  const remaining = await (await fetch(`${base}/api/listings/recent`)).json();
+  expect(remaining.items.map((item: { id: string }) => item.id)).toEqual(
+    fixtures.slice(1, 7).map(({ listing }) => listing._id.toHexString())
+  );
+  await orm.em
+    .getConnection()
+    .getDb()
+    .collection('users')
+    .updateOne({ _id: owner._id }, { $set: { status: 'suspended' } });
+  try {
+    expect((await (await fetch(`${base}/api/listings/recent`)).json()).items).toEqual([]);
+    expect((await fetch(`${base}/api/listings/${fixtures[1]!.listing._id}`)).status).toBe(404);
+    const sitemap = await (await fetch(`${base}/api/listings/sitemap`)).json();
+    const ids = new Set(fixtures.map(({ listing }) => listing._id.toHexString()));
+    expect(sitemap.items.some((item: { id: string }) => ids.has(item.id))).toBe(false);
+  } finally {
+    await orm.em
+      .getConnection()
+      .getDb()
+      .collection('users')
+      .updateOne({ _id: owner._id }, { $set: { status: 'active' } });
+  }
+});
+
+it('streams publication-aware sitemap pages with stable tied timestamps and rejects malformed continuation', async () => {
+  const fixtures = Array.from({ length: 1002 }, () => fixture(bounds(19)));
+  await save(fixtures);
+  const expected = new Set(fixtures.map(({ listing }) => listing._id.toHexString()));
+  const found: string[] = [];
+  let cursor: string | null = null;
+  let pages = 0;
+  do {
+    const response: Response = await fetch(
+      `${base}/api/listings/sitemap${cursor ? `?cursor=${cursor}` : ''}`
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    const result: {
+      items: { id: string; slug: string; publishedAt: string }[];
+      nextCursor: string | null;
+    } = await response.json();
+    expect(result.items.length).toBeLessThanOrEqual(1000);
+    for (const item of result.items) {
+      expect(Object.keys(item).sort()).toEqual(['id', 'publishedAt', 'slug']);
+      if (expected.has(item.id)) found.push(item.id);
+    }
+    cursor = result.nextCursor;
+    pages++;
+  } while (cursor && pages < 5);
+  expect(cursor).toBeNull();
+  expect(pages).toBeGreaterThan(1);
+  expect(found).toEqual([...expected].sort().reverse());
+  expect(new Set(found).size).toBe(1002);
+  for (const value of [
+    'cursor=invalid',
+    'cursor=one&cursor=two',
+    'limit=1',
+    'cursor[$ne]=1',
+    `cursor=${'x'.repeat(257)}`
+  ])
+    expect((await fetch(`${base}/api/listings/sitemap?${value}`)).status).toBe(400);
+});

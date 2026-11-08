@@ -3,13 +3,18 @@
     <p class="eyebrow">Local places. New beginnings.</p>
     <h1 id="welcome-heading" tabindex="-1">Your next chapter,<br />in {{ city }}.</h1>
     <p class="intro">
-      A home is more than an address. We're creating a simpler way to connect with individual
-      property owners and find a place that feels like yours.
+      Discover homes from individual property owners. Explore the neighbourhood, compare places and
+      find a home that feels like yours.
     </p>
-    <p class="availability"><span aria-hidden="true"></span>Marketplace in preparation</p>
-    <a nz-button nzType="primary" routerLink="/owner"
-      ><span>Explore the owner workspace</span><span aria-hidden="true">↗</span></a
-    >
+    <div class="entry-actions" aria-label="Find your next home">
+      <a class="primary action" routerLink="/search" [queryParams]="{ transactionType: 'rent' }"
+        >Find a home to rent</a
+      >
+      <a class="action" routerLink="/search" [queryParams]="{ transactionType: 'sale' }"
+        >Find a home to buy</a
+      >
+    </div>
+    <a class="owner-link" routerLink="/owner">Have a place to share? Explore the owner workspace</a>
   </div>
   <div class="city-art" aria-hidden="true">
     <div class="art-topline"><span>40.6401° N</span><span>22.9444° E</span></div>
@@ -32,15 +37,73 @@
     <div class="art-caption"><span>THESSALONIKI</span><span>Room for your next chapter.</span></div>
   </div>
 </section>
-<section class="availability-panel panel" aria-label="Marketplace availability">
-  <app-ui-state
-    kind="empty"
-    heading="Good places take a little preparation."
-    description="Use Search in the navigation to explore approved homes by area, price and property type. Owners can prepare listings in their workspace."
-  />
-  <div class="local-note">
-    <span class="eyebrow">Starting local</span>
-    <p>One city.<br />More possibilities.</p>
-    <span class="muted">{{ city }}, Greece</span>
+<section class="recent-section" aria-labelledby="recent-heading" [attr.aria-busy]="loading()">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">New places. Fresh possibilities.</p>
+      <h2 id="recent-heading">Recently published homes</h2>
+    </div>
+    <a class="action" routerLink="/search">Explore all homes</a>
   </div>
+  <p class="muted">Newest published first · Every location is approximate.</p>
+  @if (loading()) {
+    <app-ui-state
+      kind="loading"
+      heading="Finding recent homes"
+      description="Loading recently published listings…"
+    />
+  } @else if (failed()) {
+    <app-ui-state
+      kind="error"
+      heading="Recent homes unavailable"
+      description="We could not load recent listings. Please try again."
+      retryLabel="Retry recent homes"
+      (retry)="loadRecent()"
+    />
+  } @else if (!recent().length) {
+    <app-ui-state
+      kind="empty"
+      heading="Your next chapter is on its way"
+      description="No homes are published yet. Come back soon or explore the search map."
+    />
+  } @else {
+    <div class="recent-grid">
+      @for (card of recent(); track card.id) {
+        <article class="recent-card" [attr.aria-labelledby]="'recent-title-' + card.id">
+          <div class="photo">
+            @if (!brokenImages().has(card.id)) {
+              <img
+                [src]="card.coverImage.url"
+                alt=""
+                [width]="card.coverImage.width"
+                [height]="card.coverImage.height"
+                loading="lazy"
+                decoding="async"
+                (error)="imageFailed(card.id)"
+              />
+            } @else {
+              <span>Photo unavailable</span>
+            }
+            <span class="transaction">{{
+              card.transactionType === 'rent' ? 'For rent' : 'For sale'
+            }}</span>
+          </div>
+          <div class="card-copy">
+            <p class="price">
+              {{ card.priceMinor / 100 | price
+              }}<span>{{ card.transactionType === 'rent' ? ' / month' : '' }}</span>
+            </p>
+            <h3 [id]="'recent-title-' + card.id">
+              <a [routerLink]="['/listings', card.id, card.slug]">{{ card.title }}</a>
+            </h3>
+            <p>{{ card.neighborhood ? card.neighborhood + ', ' : '' }}{{ card.city }}</p>
+            <p class="muted">
+              {{ card.areaM2 | area }} · {{ card.bedrooms }} bedrooms ·
+              {{ card.bathrooms }} bathrooms
+            </p>
+          </div>
+        </article>
+      }
+    </div>
+  }
 </section>

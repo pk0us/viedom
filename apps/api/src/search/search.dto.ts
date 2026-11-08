@@ -80,3 +80,11 @@ export class ListingSearchQueryDto extends ListingMarkersQueryDto {
   @Matches(/^[A-Za-z0-9_-]+$/)
   cursor?: string;
 }
+
+export class ListingSitemapQueryDto {
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @Length(1, 256)
+  @Matches(/^[A-Za-z0-9_-]+$/)
+  cursor?: string;
+}

@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException
+} from '@nestjs/common';
 import { MikroORM, ObjectId } from '@mikro-orm/mongodb';
 import { createHash } from 'node:crypto';
 import type {
@@ -7,14 +12,26 @@ import type {
   ListingSearchQuery,
   ListingSearchResponse,
   PublicListingCard,
+  PublicListingDetail,
+  RecentListingsResponse,
+  ListingSitemapResponse,
+  ListingPreviewContent,
+  MediaVariant,
   PublicListingMarker
 } from '@viedom/contracts';
+import type { PipelineStage } from './public-listings.pipeline.js';
 import { Configuration } from '../configuration.js';
 import { Listing } from '../database/entities.js';
+import {
+  buildPublicEligibilityPipeline,
+  cardProjectionStages,
+  markerProjection
+} from './public-listings.pipeline.js';
 
 export const MARKER_LIMIT = 500;
+export const RECENT_LIMIT = 6;
+export const SITEMAP_LIMIT = 1000;
 export const SEARCH_MAX_TIME_MS = 2000;
-type PipelineStage = Record<string, unknown>;
 
 export function validateSearchBounds(query: ListingMarkersQuery): void {
   if (
@@ -103,55 +120,6 @@ function sphericalBounds(query: ListingMarkersQuery) {
   return { $geoWithin: { $centerSphere: [[longitude, latitude], radius] } };
 }
 
-function gridCoordinate(axis: number, step: number, maximum: number): unknown {
-  return {
-    $max: [
-      -maximum,
-      {
-        $min: [
-          maximum,
-          {
-            $round: [
-              {
-                $multiply: [
-                  {
-                    $add: [
-                      {
-                        $floor: {
-                          $divide: [
-                            { $arrayElemAt: ['$property.privateLocation.coordinates', axis] },
-                            step
-                          ]
-                        }
-                      },
-                      0.5
-                    ]
-                  },
-                  step
-                ]
-              },
-              7
-            ]
-          }
-        ]
-      }
-    ]
-  };
-}
-
-function validVariant(name: 'large' | 'thumbnail'): unknown[] {
-  const path = `$$asset.variants.${name}`;
-  return [
-    { $in: [`${path}.key`, '$$asset.processingKeys'] },
-    ...(['bytes', 'width', 'height'] as const).flatMap((field) => [
-      { $isNumber: `${path}.${field}` },
-      { $gt: [`${path}.${field}`, 0] },
-      { $lte: [`${path}.${field}`, field === 'bytes' ? 10_485_760 : 1920] },
-      { $eq: [`${path}.${field}`, { $trunc: `${path}.${field}` }] }
-    ])
-  ];
-}
-
 export function buildSearchPipeline(
   query: ListingSearchQuery,
   now = new Date(),
@@ -160,22 +128,8 @@ export function buildSearchPipeline(
   validateSearchBounds(query);
   const match: Record<string, unknown> = {
     publicLocation: sphericalBounds(query),
-    status: 'published',
-    deletedAt: null,
-    moderationHold: false,
-    publishedAt: { $ne: null, $lte: now },
-    $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
     'publicLocation.coordinates.0': { $gte: query.west, $lte: query.east },
-    'publicLocation.coordinates.1': { $gte: query.south, $lte: query.north },
-    $expr: {
-      $and: [
-        { $eq: ['$approvedVersion', '$version'] },
-        { $ne: ['$submittedVersion', null] },
-        { $lte: ['$submittedVersion', '$version'] },
-        { $ne: ['$reviewedById', null] },
-        { $ne: ['$reviewedById', '$publisherId'] }
-      ]
-    }
+    'publicLocation.coordinates.1': { $gte: query.south, $lte: query.north }
   };
   if (query.transactionType !== undefined) match['transactionType'] = query.transactionType;
   if (query.propertyType !== undefined) match['propertyType'] = query.propertyType;
@@ -197,191 +151,23 @@ export function buildSearchPipeline(
       }
     ];
   }
-  const snapshots = [
-    ['$propertyVersion', '$property.version'],
-    ['$propertyType', '$property.type'],
-    ['$areaM2', '$property.details.areaM2'],
-    ['$bedrooms', '$property.details.bedrooms'],
-    ['$bathrooms', '$property.details.bathrooms'],
-    ['$city', '$property.address.city'],
-    ['$neighborhood', '$property.address.neighborhood'],
-    ['$publisherId', '$property.ownerId']
-  ];
-  const latitudeStep = 300 / 111_320;
-  const longitudeStep = 300 / (111_320 * Math.cos((40.64 * Math.PI) / 180));
-  const baseProjection = {
-    _id: 0,
-    id: { $toString: '$_id' },
-    transactionType: 1,
-    priceMinor: 1,
-    currency: 1,
-    publicLocation: { type: '$publicLocation.type', coordinates: '$publicLocation.coordinates' },
-    locationPrecision: { $literal: 'approximate' }
-  };
   return [
-    { $match: match },
-    { $sort: { publishedAt: -1, _id: -1 } },
-    {
-      $lookup: {
-        from: 'users',
-        localField: 'publisherId',
-        foreignField: '_id',
-        as: 'publisher'
-      }
-    },
-    { $unwind: '$publisher' },
-    {
-      $match: {
-        'publisher.status': 'active',
-        'publisher.deletedAt': null,
-        'publisher.emailVerifiedAt': { $ne: null }
-      }
-    },
-    {
-      $lookup: { from: 'properties', localField: 'propertyId', foreignField: '_id', as: 'property' }
-    },
-    { $unwind: '$property' },
-    {
-      $match: {
-        $expr: {
-          $and: [
-            ...snapshots.map((pair) => ({ $eq: pair })),
-            { $eq: ['$publicLocation.type', 'Point'] },
-            {
-              $eq: [
-                { $arrayElemAt: ['$publicLocation.coordinates', 0] },
-                gridCoordinate(0, longitudeStep, 180)
-              ]
-            },
-            {
-              $eq: [
-                { $arrayElemAt: ['$publicLocation.coordinates', 1] },
-                gridCoordinate(1, latitudeStep, 90)
-              ]
-            }
-          ]
-        }
-      }
-    },
-    {
-      $lookup: {
-        from: 'media_galleries',
-        localField: '_id',
-        foreignField: 'listingId',
-        as: 'gallery'
-      }
-    },
-    { $unwind: '$gallery' },
-    {
-      $match: {
-        $expr: {
-          $and: [
-            { $eq: ['$publisherId', '$gallery.ownerId'] },
-            { $gt: [{ $size: '$gallery.mediaIds' }, 0] },
-            { $lte: [{ $size: '$gallery.mediaIds' }, 20] },
-            {
-              $eq: [
-                { $size: '$gallery.mediaIds' },
-                { $size: { $setUnion: ['$gallery.mediaIds', []] } }
-              ]
-            },
-            { $in: ['$gallery.coverMediaId', '$gallery.mediaIds'] }
-          ]
-        }
-      }
-    },
-    {
-      $set: {
-        galleryAssetIds: {
-          $map: {
-            input: '$gallery.mediaIds',
-            as: 'id',
-            in: { $convert: { input: '$$id', to: 'objectId', onError: null, onNull: null } }
-          }
-        }
-      }
-    },
-    {
-      $lookup: {
-        from: 'media_assets',
-        localField: 'galleryAssetIds',
-        foreignField: '_id',
-        as: 'assets'
-      }
-    },
-    {
-      $match: {
-        $expr: {
-          $and: [
-            { $eq: [{ $size: '$assets' }, { $size: '$gallery.mediaIds' }] },
-            {
-              $allElementsTrue: [
-                {
-                  $map: {
-                    input: '$assets',
-                    as: 'asset',
-                    in: {
-                      $and: [
-                        { $eq: ['$$asset.ownerId', '$publisherId'] },
-                        { $eq: ['$$asset.listingId', '$_id'] },
-                        { $eq: ['$$asset.state', 'ready'] },
-                        { $ne: ['$$asset.variants', null] },
-                        ...validVariant('large'),
-                        ...validVariant('thumbnail')
-                      ]
-                    }
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      }
-    },
+    ...buildPublicEligibilityPipeline(match, now),
     { $limit: (mode === 'cards' ? (query.limit ?? 20) : MARKER_LIMIT) + 1 },
-    ...(mode === 'cards'
-      ? [
-          {
-            $set: {
-              cover: {
-                $arrayElemAt: [
-                  {
-                    $filter: {
-                      input: '$assets',
-                      as: 'asset',
-                      cond: {
-                        $eq: [{ $toString: '$$asset._id' }, '$gallery.coverMediaId']
-                      }
-                    }
-                  },
-                  0
-                ]
-              }
-            }
-          },
-          {
-            $project: {
-              ...baseProjection,
-              title: 1,
-              slug: 1,
-              propertyType: 1,
-              areaM2: 1,
-              bedrooms: 1,
-              bathrooms: 1,
-              city: 1,
-              neighborhood: 1,
-              publishedAt: 1,
-              coverMediaId: '$gallery.coverMediaId',
-              coverDimensions: {
-                width: '$cover.variants.thumbnail.width',
-                height: '$cover.variants.thumbnail.height',
-                bytes: '$cover.variants.thumbnail.bytes'
-              }
-            }
-          }
-        ]
-      : [{ $project: baseProjection }])
+    ...(mode === 'cards' ? cardProjectionStages() : [{ $project: markerProjection }])
   ];
+}
+
+interface PublicDetailRow {
+  id: string;
+  slug: string;
+  publishedAt: Date;
+  content: Omit<ListingPreviewContent, 'media'>;
+  coverMediaId: string;
+  media: {
+    id: string;
+    variants: Record<'large' | 'thumbnail', Omit<MediaVariant, 'url' | 'contentType'>>;
+  }[];
 }
 
 interface SearchCardRow extends Omit<PublicListingCard, 'publishedAt' | 'coverImage'> {
@@ -403,25 +189,7 @@ export class SearchService {
     const items = rows.slice(0, limit);
     const last = items.at(-1);
     return {
-      items: items.map((row) => ({
-        ...marker(row),
-        title: row.title,
-        slug: row.slug,
-        propertyType: row.propertyType,
-        areaM2: row.areaM2,
-        bedrooms: row.bedrooms,
-        bathrooms: row.bathrooms,
-        city: row.city,
-        neighborhood: row.neighborhood,
-        publishedAt: row.publishedAt.toISOString(),
-        coverImage: {
-          url: `${this.configuration.values.storage.deliveryBaseUrl}/${row.id}/${row.coverMediaId}/thumbnail`,
-          width: row.coverDimensions.width,
-          height: row.coverDimensions.height,
-          bytes: row.coverDimensions.bytes,
-          contentType: 'image/webp'
-        }
-      })),
+      items: items.map((row) => this.card(row)),
       nextCursor:
         rows.length > limit && last
           ? Buffer.from(
@@ -442,13 +210,201 @@ export class SearchService {
     };
   }
 
-  private async execute<T extends object>(pipeline: PipelineStage[]): Promise<T[]> {
+  async recent(): Promise<RecentListingsResponse> {
+    const rows = await this.execute<SearchCardRow>(
+      [
+        ...buildPublicEligibilityPipeline({ city: this.configuration.values.public.city }),
+        { $limit: RECENT_LIMIT },
+        ...cardProjectionStages()
+      ],
+      'status_published'
+    );
+    return { items: rows.map((row) => this.card(row)) };
+  }
+
+  async detail(id: string): Promise<PublicListingDetail> {
+    if (!/^[a-f0-9]{24}$/.test(id)) throw new NotFoundException();
+    const rows = await this.execute<PublicDetailRow>(
+      [
+        ...buildPublicEligibilityPipeline({ _id: new ObjectId(id) }),
+        { $limit: 1 },
+        {
+          $project: {
+            _id: 0,
+            id: { $toString: '$_id' },
+            slug: 1,
+            publishedAt: 1,
+            coverMediaId: '$gallery.coverMediaId',
+            content: {
+              transactionType: '$transactionType',
+              title: '$title',
+              description: '$description',
+              priceMinor: '$priceMinor',
+              currency: '$currency',
+              property: {
+                type: '$propertyType',
+                details: {
+                  areaM2: '$areaM2',
+                  bedrooms: '$bedrooms',
+                  bathrooms: '$bathrooms',
+                  floor: '$property.details.floor',
+                  yearBuilt: '$property.details.yearBuilt',
+                  amenities: '$property.details.amenities'
+                },
+                address: {
+                  countryCode: '$property.address.countryCode',
+                  city: '$city',
+                  neighborhood: '$neighborhood'
+                },
+                publicLocation: {
+                  type: '$publicLocation.type',
+                  coordinates: '$publicLocation.coordinates'
+                }
+              }
+            },
+            media: {
+              $map: {
+                input: '$gallery.mediaIds',
+                as: 'id',
+                in: {
+                  $let: {
+                    vars: {
+                      asset: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: '$assets',
+                              as: 'candidate',
+                              cond: { $eq: [{ $toString: '$$candidate._id' }, '$$id'] }
+                            }
+                          },
+                          0
+                        ]
+                      }
+                    },
+                    in: {
+                      id: '$$id',
+                      variants: {
+                        large: {
+                          width: '$$asset.variants.large.width',
+                          height: '$$asset.variants.large.height',
+                          bytes: '$$asset.variants.large.bytes'
+                        },
+                        thumbnail: {
+                          width: '$$asset.variants.thumbnail.width',
+                          height: '$$asset.variants.thumbnail.height',
+                          bytes: '$$asset.variants.thumbnail.bytes'
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      '_id_'
+    );
+    const row = rows[0];
+    if (!row) throw new NotFoundException();
+    return {
+      id: row.id,
+      slug: row.slug,
+      publishedAt: row.publishedAt.toISOString(),
+      locationPrecision: 'approximate',
+      content: {
+        ...row.content,
+        media: {
+          coverMediaId: row.coverMediaId,
+          items: row.media.map((item) => {
+            const variant = (name: 'large' | 'thumbnail'): MediaVariant => ({
+              url: `${this.configuration.values.storage.deliveryBaseUrl}/${row.id}/${item.id}/${name}`,
+              width: item.variants[name].width,
+              height: item.variants[name].height,
+              bytes: item.variants[name].bytes,
+              contentType: 'image/webp'
+            });
+            return {
+              id: item.id,
+              variants: { large: variant('large'), thumbnail: variant('thumbnail') }
+            };
+          })
+        }
+      }
+    };
+  }
+
+  async sitemap(cursor?: string): Promise<ListingSitemapResponse> {
+    const match: Record<string, unknown> = {};
+    if (cursor !== undefined) {
+      const value = decodeSitemapCursor(cursor);
+      match['$and'] = [
+        {
+          $or: [
+            { publishedAt: { $lt: value.date } },
+            { publishedAt: value.date, _id: { $lt: value.id } }
+          ]
+        }
+      ];
+    }
+    const rows = await this.execute<{ id: string; slug: string; publishedAt: Date }>(
+      [
+        ...buildPublicEligibilityPipeline(match),
+        { $limit: SITEMAP_LIMIT + 1 },
+        { $project: { _id: 0, id: { $toString: '$_id' }, slug: 1, publishedAt: 1 } }
+      ],
+      'status_published'
+    );
+    const items = rows.slice(0, SITEMAP_LIMIT).map((row) => ({
+      id: row.id,
+      slug: row.slug,
+      publishedAt: row.publishedAt.toISOString()
+    }));
+    const last = items.at(-1);
+    return {
+      items,
+      nextCursor:
+        rows.length > SITEMAP_LIMIT && last
+          ? Buffer.from(JSON.stringify([last.publishedAt, last.id, 'sitemap'])).toString(
+              'base64url'
+            )
+          : null
+    };
+  }
+
+  private card(row: SearchCardRow): PublicListingCard {
+    return {
+      ...marker(row),
+      title: row.title,
+      slug: row.slug,
+      propertyType: row.propertyType,
+      areaM2: row.areaM2,
+      bedrooms: row.bedrooms,
+      bathrooms: row.bathrooms,
+      city: row.city,
+      neighborhood: row.neighborhood,
+      publishedAt: row.publishedAt.toISOString(),
+      coverImage: {
+        url: `${this.configuration.values.storage.deliveryBaseUrl}/${row.id}/${row.coverMediaId}/thumbnail`,
+        width: row.coverDimensions.width,
+        height: row.coverDimensions.height,
+        bytes: row.coverDimensions.bytes,
+        contentType: 'image/webp'
+      }
+    };
+  }
+
+  private async execute<T extends object>(
+    pipeline: PipelineStage[],
+    hint = 'public_search_geo'
+  ): Promise<T[]> {
     try {
       return await this.orm.em
         .fork()
         .getCollection(Listing)
         .aggregate<T>(pipeline, {
-          hint: 'public_search_geo',
+          hint,
           maxTimeMS: SEARCH_MAX_TIME_MS,
           allowDiskUse: false
         })
@@ -470,4 +426,27 @@ function marker(row: PublicListingMarker): PublicListingMarker {
     publicLocation: { type: 'Point', coordinates: [...row.publicLocation.coordinates] },
     locationPrecision: 'approximate'
   };
+}
+
+export function decodeSitemapCursor(value: string): { date: Date; id: ObjectId } {
+  try {
+    if (value.length > 256 || !/^[A-Za-z0-9_-]+$/.test(value)) throw new Error();
+    const text = Buffer.from(value, 'base64url').toString('utf8');
+    if (Buffer.from(text).toString('base64url') !== value) throw new Error();
+    const data: unknown = JSON.parse(text);
+    if (
+      !Array.isArray(data) ||
+      data.length !== 3 ||
+      typeof data[0] !== 'string' ||
+      typeof data[1] !== 'string' ||
+      !/^[a-f0-9]{24}$/.test(data[1]) ||
+      data[2] !== 'sitemap'
+    )
+      throw new Error();
+    const date = new Date(data[0]);
+    if (!Number.isFinite(date.getTime()) || date.toISOString() !== data[0]) throw new Error();
+    return { date, id: new ObjectId(data[1]) };
+  } catch {
+    throw new BadRequestException('Invalid sitemap cursor.');
+  }
 }

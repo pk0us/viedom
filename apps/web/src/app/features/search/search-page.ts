@@ -13,7 +13,7 @@ import {
 import type { ElementRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormField, form } from '@angular/forms/signals';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import type { ListingMarkersQuery, SearchBounds } from '@viedom/contracts';
 import { publicConfig } from '../../../generated/public-config';
 import { AreaPipe } from '../../shared/area-pipe';
@@ -34,7 +34,7 @@ import { SearchState } from './search-state';
 
 @Component({
   selector: 'app-search-page',
-  imports: [FormField, AreaPipe, PricePipe, UiState, SearchMap],
+  imports: [FormField, RouterLink, AreaPipe, PricePipe, UiState, SearchMap],
   providers: [SearchState],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './search-page.html',

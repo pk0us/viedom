@@ -339,6 +339,7 @@ export function validateConfig(env) {
       googleCallbackUrl: `${browserApi.href}/auth/google/callback`
     },
     public: {
+      webOrigin: webOrigin.origin,
       apiBaseUrl: browserApi.href,
       locale,
       currency: 'EUR',

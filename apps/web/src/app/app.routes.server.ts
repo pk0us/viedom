@@ -7,6 +7,8 @@ export const serverRoutes: ServerRoute[] = [
     renderMode: RenderMode.Server
   },
   { path: 'health', renderMode: RenderMode.Server },
+  { path: 'listings/:id/:slug', renderMode: RenderMode.Server },
+  { path: 'listings/:id', renderMode: RenderMode.Server },
   { path: 'admin', renderMode: RenderMode.Client },
   { path: 'admin/**', renderMode: RenderMode.Client },
   { path: '**', renderMode: RenderMode.Client }

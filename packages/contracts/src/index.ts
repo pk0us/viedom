@@ -1,6 +1,7 @@
 /** Transport-only types. Persistence and server configuration never belong here. */
 export interface PublicConfig {
   readonly apiBaseUrl: string;
+  readonly webOrigin: string;
   readonly locale: string;
   readonly currency: 'EUR';
   readonly city: string;
@@ -288,4 +289,19 @@ export interface MediaCompleteRequest extends VersionRequest {
 export interface UpdateMediaGalleryRequest extends VersionRequest {
   mediaIds: string[];
   coverMediaId: string | null;
+}
+
+export interface PublicListingDetail {
+  id: string;
+  slug: string;
+  publishedAt: string;
+  locationPrecision: 'approximate';
+  content: ListingPreviewContent;
+}
+export interface RecentListingsResponse {
+  items: PublicListingCard[];
+}
+export interface ListingSitemapResponse {
+  items: { id: string; slug: string; publishedAt: string }[];
+  nextCursor: string | null;
 }

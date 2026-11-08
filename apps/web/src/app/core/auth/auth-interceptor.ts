@@ -12,7 +12,10 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
   if (
     !request.url.startsWith(`${base}/`) ||
     /^\/(auth|health)(\/|$)/.test(request.url.slice(base.length)) ||
-    /^\/listings\/(search|markers)$/.test(request.url.slice(base.length))
+    (request.method === 'GET' &&
+      /^\/listings\/(search|markers|recent|sitemap|[a-f0-9]{24})$/.test(
+        request.url.slice(base.length)
+      ))
   )
     return next(request);
   const session = inject(AuthSession);

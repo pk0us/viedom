@@ -61,7 +61,8 @@ test('public config is an explicit allowlist including no arbitrary PUBLIC_ keys
     'city',
     'currency',
     'locale',
-    'map'
+    'map',
+    'webOrigin'
   ]);
   assert.ok(!JSON.stringify(result.public).includes('SYNTHETIC_SECRET'));
 });

@@ -42,6 +42,7 @@ export class ApiErrorFilter implements ExceptionFilter {
         requestId: randomUUID()
       }
     };
+    response.setHeader('Cache-Control', 'no-store');
     response.status(status).json(body);
   }
 }

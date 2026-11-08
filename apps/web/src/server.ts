@@ -7,11 +7,41 @@ import {
 import express from 'express';
 import { join } from 'node:path';
 import { serverConfig } from './generated/server-config';
+import { publicConfig } from './generated/public-config';
+import type { ListingSitemapResponse } from '@viedom/contracts';
+import { generateSitemap } from './sitemap';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
 const app = express();
 const angularApp = new AngularNodeAppEngine();
+
+app.get('/robots.txt', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res
+    .type('text/plain')
+    .send(
+      `User-agent: *\nDisallow: /owner\nDisallow: /admin\nDisallow: /auth\nDisallow: /health\nSitemap: ${publicConfig.webOrigin}/sitemap.xml\n`
+    );
+});
+
+app.get('/sitemap.xml', async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const signal = AbortSignal.timeout(10000);
+    const sitemap = await generateSitemap(publicConfig.webOrigin, async (cursor) => {
+      const url = new URL(`${serverConfig.apiBaseUrl}/listings/sitemap`);
+      if (cursor) url.searchParams.set('cursor', cursor);
+      const response = await fetch(url, { signal, credentials: 'omit', redirect: 'error' });
+      if (!response.ok) throw new Error('Sitemap unavailable.');
+      return (await response.json()) as ListingSitemapResponse;
+    });
+    res.type('application/xml').send(sitemap);
+  } catch {
+    res.status(503).setHeader('Retry-After', '60');
+    res.type('text/plain').send('Sitemap temporarily unavailable.');
+  }
+});
 
 /**
  * Example Express Rest API endpoints can be defined here.
@@ -37,6 +67,7 @@ app.use(
 );
 
 app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
   if (/^\/(owner|admin|auth)(\/|$)/.test(req.path)) {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');

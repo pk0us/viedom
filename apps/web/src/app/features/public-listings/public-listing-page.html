@@ -1,0 +1,155 @@
+@if (listing(); as home) {
+  <article class="listing-page" aria-labelledby="listing-heading">
+    <a class="back-link" routerLink="/search">Explore all homes</a>
+    <header class="listing-header">
+      <div>
+        <p class="eyebrow">
+          {{ home.content.property.type }} ·
+          {{ home.content.transactionType === 'rent' ? 'For rent' : 'For sale' }}
+        </p>
+        <h1 id="listing-heading" tabindex="-1">{{ home.content.title }}</h1>
+        <p class="muted">
+          {{
+            home.content.property.address.neighborhood
+              ? home.content.property.address.neighborhood + ', '
+              : ''
+          }}{{ home.content.property.address.city }} · Approximate location
+        </p>
+      </div>
+      <p class="price">
+        {{ home.content.priceMinor / 100 | price
+        }}<span>{{ home.content.transactionType === 'rent' ? ' / month' : '' }}</span>
+      </p>
+    </header>
+
+    <section class="gallery" aria-labelledby="gallery-heading">
+      <h2 id="gallery-heading" class="visually-hidden">Property photos</h2>
+      <div class="main-photo">
+        @if (currentPhoto(); as photo) {
+          @if (!brokenPhotos().has(photo.id)) {
+            <img
+              [src]="photo.variants.large.url"
+              [alt]="
+                home.content.title + ' — photo ' + (photoIndex() + 1) + ' of ' + photos().length
+              "
+              [width]="photo.variants.large.width"
+              [height]="photo.variants.large.height"
+              decoding="async"
+              fetchpriority="high"
+              (error)="photoFailed(photo.id)"
+            />
+          } @else {
+            <p role="status">This photo is unavailable. Try another photo.</p>
+          }
+        } @else {
+          <p>No photos available.</p>
+        }
+      </div>
+      @if (photos().length > 1) {
+        <div class="gallery-controls" role="group" aria-label="Photo navigation">
+          <button type="button" (click)="changePhoto(-1)">Previous photo</button>
+          <p role="status" aria-live="polite">
+            Photo {{ photoIndex() + 1 }} of {{ photos().length }}
+          </p>
+          <button type="button" (click)="changePhoto(1)">Next photo</button>
+        </div>
+      }
+    </section>
+
+    <div class="content-grid">
+      <div>
+        <section class="detail-section" aria-labelledby="characteristics-heading">
+          <h2 id="characteristics-heading">At a glance</h2>
+          <dl class="characteristics">
+            <div>
+              <dt>Property type</dt>
+              <dd class="capitalize">{{ home.content.property.type }}</dd>
+            </div>
+            <div>
+              <dt>Area</dt>
+              <dd>{{ home.content.property.details.areaM2 | area }}</dd>
+            </div>
+            <div>
+              <dt>Bedrooms</dt>
+              <dd>{{ home.content.property.details.bedrooms }}</dd>
+            </div>
+            <div>
+              <dt>Bathrooms</dt>
+              <dd>{{ home.content.property.details.bathrooms }}</dd>
+            </div>
+            <div>
+              <dt>Floor</dt>
+              <dd>{{ home.content.property.details.floor }}</dd>
+            </div>
+            @if (home.content.property.details.yearBuilt !== null) {
+              <div>
+                <dt>Year built</dt>
+                <dd>{{ home.content.property.details.yearBuilt }}</dd>
+              </div>
+            }
+          </dl>
+          @if (home.content.property.details.amenities.length) {
+            <h3>Amenities</h3>
+            <ul class="amenities">
+              @for (amenity of home.content.property.details.amenities; track amenity) {
+                <li>{{ amenity }}</li>
+              }
+            </ul>
+          }
+        </section>
+        <section class="detail-section" aria-labelledby="description-heading">
+          <h2 id="description-heading">About this home</h2>
+          <p class="description">{{ home.content.description }}</p>
+        </section>
+        <section class="detail-section" aria-labelledby="location-heading">
+          <h2 id="location-heading">Explore the area</h2>
+          <p>
+            {{
+              home.content.property.address.neighborhood
+                ? home.content.property.address.neighborhood + ', '
+                : ''
+            }}{{ home.content.property.address.city }}, Greece
+          </p>
+          <p class="muted">
+            The location is approximate to protect the owner's privacy. The exact address is not
+            displayed.
+          </p>
+          <a class="action" routerLink="/search" [queryParams]="nearbyQuery()"
+            >Explore this approximate area on the map</a
+          >
+        </section>
+      </div>
+      <aside class="contact-panel" aria-labelledby="contact-heading">
+        <p class="eyebrow">Your next chapter</p>
+        <h2 id="contact-heading">Interested in this home?</h2>
+        <p>Find out about contacting the owner.</p>
+        <a class="action primary" [routerLink]="[]" fragment="inquiry">Contact options</a>
+        <section id="inquiry" tabindex="-1" aria-labelledby="inquiry-heading">
+          <h3 id="inquiry-heading">Owner inquiries are coming soon</h3>
+          <p>
+            Online inquiries are not available yet. No contact details or messages can be submitted
+            here.
+          </p>
+        </section>
+      </aside>
+    </div>
+  </article>
+} @else {
+  <section class="listing-unavailable" aria-labelledby="listing-heading">
+    <h1 id="listing-heading" tabindex="-1">
+      {{ result().unavailable ? 'Listing temporarily unavailable' : 'Home unavailable' }}
+    </h1>
+    @if (result().unavailable) {
+      <app-ui-state
+        kind="error"
+        heading="We could not load this home"
+        description="Please try again in a moment."
+        retryLabel="Retry listing"
+        (retry)="retry()"
+      />
+    } @else {
+      <p>This listing is no longer available or could not be found.</p>
+    }
+    <a class="action" routerLink="/search">Explore other homes</a>
+  </section>
+}

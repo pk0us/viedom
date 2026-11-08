@@ -3,11 +3,19 @@ import {
   ChangeDetectionStrategy,
   Component,
   inject,
-  Injector
+  Injector,
+  signal
 } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
-import { Meta } from '@angular/platform-browser';
-import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import {
+  NavigationCancel,
+  NavigationEnd,
+  NavigationError,
+  ResolveEnd,
+  ResolveStart,
+  Router,
+  RouterOutlet
+} from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 
@@ -15,35 +23,34 @@ import { filter } from 'rxjs';
   selector: 'app-root',
   imports: [RouterOutlet],
   template:
-    '<a class="skip-link" href="#main-content" (click)="skipToContent($event)">Skip to content</a><router-outlet />',
+    '<a class="skip-link" href="#main-content" (click)="skipToContent($event)">Skip to content</a>@if (resolving()) { <p class="route-loading" role="status">Loading listing…</p> }<router-outlet />',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class App {
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
   private readonly injector = inject(Injector);
-  private readonly meta = inject(Meta);
+  readonly resolving = signal(false);
 
   constructor() {
     let initialNavigation = true;
     let previousPath = '';
+    this.router.events.pipe(takeUntilDestroyed()).subscribe((event) => {
+      if (event instanceof ResolveStart) this.resolving.set(true);
+      if (
+        event instanceof ResolveEnd ||
+        event instanceof NavigationCancel ||
+        event instanceof NavigationError ||
+        event instanceof NavigationEnd
+      )
+        this.resolving.set(false);
+    });
     this.router.events
       .pipe(
         filter((event) => event instanceof NavigationEnd),
         takeUntilDestroyed()
       )
       .subscribe((event) => {
-        let route = this.router.routerState.snapshot.root;
-        let noindex = false;
-        while (route) {
-          noindex ||= route.data['noindex'] === true;
-          if (!route.firstChild) break;
-          route = route.firstChild;
-        }
-        this.meta.updateTag({
-          name: 'robots',
-          content: noindex ? 'noindex, nofollow' : 'index, follow'
-        });
         const path = event.urlAfterRedirects.split(/[?#]/)[0] ?? '';
         if (
           !initialNavigation &&

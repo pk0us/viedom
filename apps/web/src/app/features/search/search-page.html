@@ -217,7 +217,7 @@
         @if (!state.selectedCard()) {
           <aside class="selection-summary" aria-label="Selected map location" role="status">
             <strong
-              >Selected home · {{ selected.priceMinor | price
+              >Selected home · {{ selected.priceMinor / 100 | price
               }}{{ selected.transactionType === 'rent' ? ' / month' : '' }}</strong
             >
             <p>
@@ -255,10 +255,12 @@
             </div>
             <div class="card-copy">
               <p class="price">
-                {{ card.priceMinor | price
+                {{ card.priceMinor / 100 | price
                 }}<span>{{ card.transactionType === 'rent' ? ' / month' : '' }}</span>
               </p>
-              <h3 [id]="'title-' + card.id">{{ card.title }}</h3>
+              <h3 [id]="'title-' + card.id">
+                <a [routerLink]="['/listings', card.id, card.slug]">{{ card.title }}</a>
+              </h3>
               <p>
                 {{ card.neighborhood ? card.neighborhood + ', ' : '' }}{{ card.city }} · Approximate
                 location

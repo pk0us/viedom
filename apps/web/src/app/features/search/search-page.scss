@@ -200,6 +200,11 @@ summary {
   font-size: 1rem;
   margin: 8px 0;
 }
+.card-copy h3 a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+}
 .card-copy p {
   font-size: 0.85rem;
 }

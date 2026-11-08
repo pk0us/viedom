@@ -1,5 +1,6 @@
 import type { Routes } from '@angular/router';
 import { adminGuard, sessionGuard } from './core/auth/auth-guards';
+import { publicListingResolver } from './core/public-listing-resolver';
 
 export const routes: Routes = [
   {
@@ -42,6 +43,20 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./layouts/public-layout/public-layout').then((m) => m.PublicLayout),
     children: [
+      {
+        path: 'listings/:id/:slug',
+        runGuardsAndResolvers: 'always',
+        resolve: { listing: publicListingResolver },
+        loadComponent: () =>
+          import('./features/public-listings/public-listing-page').then((m) => m.PublicListingPage)
+      },
+      {
+        path: 'listings/:id',
+        runGuardsAndResolvers: 'always',
+        resolve: { listing: publicListingResolver },
+        loadComponent: () =>
+          import('./features/public-listings/public-listing-page').then((m) => m.PublicListingPage)
+      },
       {
         path: 'search',
         title: 'Find a home · Viedom',

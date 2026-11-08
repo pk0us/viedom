@@ -136,4 +136,18 @@ describe('public search page interactions', () => {
     expect(page.model().transactionType).toBe('sale');
     expect(page.state.cards()).toHaveLength(1);
   });
+
+  it('displays prices in euros and links search cards to public details', async () => {
+    const { harness, page, element } = await open();
+    expect(element.querySelector('.home-card .price')?.textContent).toContain('€850.25');
+    expect(element.querySelector('.home-card h3 a')?.getAttribute('href')).toBe(
+      `/listings/${home.id}/${home.slug}`
+    );
+    client.cards.mockReturnValue(of({ items: [], nextCursor: null }));
+    page.state.search({ west: 22.8, south: 40.5, east: 23, north: 40.7 });
+    await vi.waitFor(() => expect(client.cards).toHaveBeenCalledTimes(2));
+    page.select(home.id);
+    await harness.fixture.whenStable();
+    expect(element.querySelector('.selection-summary')?.textContent).toContain('€850.25');
+  });
 });
