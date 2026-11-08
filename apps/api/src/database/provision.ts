@@ -5,6 +5,7 @@ import { authValidators } from '../auth/auth.schema.js';
 import { mediaValidators } from '../media/media.schema.js';
 import { moderationValidators } from '../admin/moderation.entities.js';
 import { adminProvisioningValidators } from './admin-provision.js';
+import { inquiryValidators } from '../inquiries/inquiries.entities.js';
 
 const string = (maxLength: number, minLength = 0) => ({ bsonType: 'string', minLength, maxLength });
 const numeric = (minimum: number, maximum: number, integer = false) => ({
@@ -139,7 +140,8 @@ export async function provision(orm: MikroORM): Promise<void> {
     ...authValidators,
     ...mediaValidators,
     ...moderationValidators,
-    ...adminProvisioningValidators
+    ...adminProvisioningValidators,
+    ...inquiryValidators
   })) {
     const existing = await db.listCollections({ name }, { nameOnly: false }).next();
     if (!existing) {
@@ -188,6 +190,9 @@ export async function provision(orm: MikroORM): Promise<void> {
     { name: 'publisher_created' }
   );
   await listings.createIndex({ propertyId: 1 }, { name: 'property_lookup' });
+  await db
+    .collection('inquiries')
+    .createIndex({ publisherId: 1, createdAt: -1, _id: -1 }, { name: 'inquiry_publisher_created' });
   await db
     .collection('media_galleries')
     .createIndex({ listingId: 1 }, { name: 'media_listing_unique', unique: true });

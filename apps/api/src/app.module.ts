@@ -7,6 +7,7 @@ import { MediaModule } from './media/media.module.js';
 import { OpenApiController } from './openapi.js';
 import { AdminModule } from './admin/admin.module.js';
 import { SearchModule } from './search/search.module.js';
+import { InquiriesModule } from './inquiries/inquiries.module.js';
 
 @Module({
   imports: [
@@ -16,7 +17,8 @@ import { SearchModule } from './search/search.module.js';
     ListingsModule,
     MediaModule,
     AdminModule,
-    SearchModule
+    SearchModule,
+    InquiriesModule
   ],
   controllers: [OpenApiController]
 })

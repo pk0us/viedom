@@ -1,5 +1,6 @@
 import { HttpException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { MikroORM, ObjectId } from '@mikro-orm/mongodb';
+import type { ClientSession } from 'mongodb';
 import { User } from '../database/entities.js';
 import { normalizeEmail } from '../database/domain.js';
 import type {
@@ -58,7 +59,13 @@ export class AuthStore {
     return this.db.collection<DeliveryRecord>('auth_deliveries');
   }
 
-  async limit(scope: string, key: string, maximum: number, seconds: number): Promise<void> {
+  async limit(
+    scope: string,
+    key: string,
+    maximum: number,
+    seconds: number,
+    session?: ClientSession
+  ): Promise<void> {
     const bucket = Math.floor(Date.now() / (seconds * 1000));
     const _id = digest(`${scope}:${key}:${bucket}`);
     const update = () =>
@@ -68,13 +75,13 @@ export class AuthStore {
           $inc: { count: 1 },
           $setOnInsert: { expiresAt: new Date((bucket + 2) * seconds * 1000) }
         },
-        { upsert: true, returnDocument: 'after' }
+        { upsert: true, returnDocument: 'after', ...(session ? { session } : {}) }
       );
     let record;
     try {
       record = await update();
     } catch (error) {
-      if (!duplicate(error)) throw error;
+      if (!duplicate(error) || session) throw error;
       record = await update();
     }
     if (!record || record.count > maximum)

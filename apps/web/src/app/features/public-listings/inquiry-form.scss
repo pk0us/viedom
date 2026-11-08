@@ -1,0 +1,68 @@
+@use '../../../styles/variables' as t;
+
+:host {
+  display: block;
+}
+fieldset {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+form,
+input,
+textarea,
+button {
+  width: 100%;
+}
+input,
+textarea {
+  font-size: 1rem;
+}
+textarea {
+  resize: vertical;
+}
+button[nz-button] {
+  min-height: 44px;
+  height: auto;
+  white-space: normal;
+}
+.privacy-note,
+.form-field p {
+  color: t.$muted;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.form-field p {
+  margin: 0;
+}
+.field-error,
+.form-field .field-error,
+.error-message {
+  color: t.$danger;
+}
+.field-error:empty {
+  display: none;
+}
+.error-message {
+  border-left: 3px solid t.$danger;
+  padding-left: 12px;
+}
+.notice {
+  padding: 16px;
+  border-radius: 6px;
+  background: t.$brand-soft;
+}
+.honeypot {
+  display: none;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

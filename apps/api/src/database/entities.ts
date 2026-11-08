@@ -3,6 +3,7 @@ import { ObjectId } from '@mikro-orm/mongodb';
 import { MediaAssetSchema, MediaGallerySchema } from '../media/media.entities.js';
 import { ModerationDecisionSchema } from '../admin/moderation.entities.js';
 import { FirstAdminGrantSchema } from './admin-provision.js';
+import { InquirySchema } from '../inquiries/inquiries.entities.js';
 import type {
   GeoPoint,
   ListingState,
@@ -145,5 +146,6 @@ export const entities = [
   MediaAssetSchema,
   MediaGallerySchema,
   ModerationDecisionSchema,
-  FirstAdminGrantSchema
+  FirstAdminGrantSchema,
+  InquirySchema
 ];

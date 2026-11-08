@@ -1,0 +1,109 @@
+<header>
+  <p class="eyebrow">Your workspace</p>
+  <h1 tabindex="-1">Inquiries</h1>
+  <p class="muted">
+    Messages received for your listings. Contact details are private to your account.
+  </p>
+</header>
+@if (notice()) {
+  <p class="notice" role="status">{{ notice() }}</p>
+}
+@if (actionError()) {
+  <p class="error-message" role="alert">{{ actionError() }}</p>
+}
+<section aria-label="Received inquiries" [attr.aria-busy]="loading()">
+  @for (inquiry of items(); track inquiry.id) {
+    <article
+      class="inquiry-card"
+      [class.unread]="inquiry.status === 'unread'"
+      [attr.data-inquiry-id]="inquiry.id"
+      [attr.aria-labelledby]="'inquiry-title-' + inquiry.id"
+    >
+      <div class="inquiry-heading">
+        <h2 [id]="'inquiry-title-' + inquiry.id">{{ inquiry.listingTitle }}</h2>
+        <span class="status">{{ statusLabel(inquiry.status) }}</span>
+      </div>
+      <p class="muted">
+        <time [attr.datetime]="inquiry.createdAt">{{ inquiry.createdAt | date: 'medium' }}</time>
+      </p>
+      <dl>
+        <div>
+          <dt>From</dt>
+          <dd>{{ inquiry.name }}</dd>
+        </div>
+        <div>
+          <dt>Email</dt>
+          <dd>{{ inquiry.email }}</dd>
+        </div>
+        @if (inquiry.phone) {
+          <div>
+            <dt>Phone</dt>
+            <dd>{{ inquiry.phone }}</dd>
+          </div>
+        }
+      </dl>
+      <p class="message">{{ inquiry.message }}</p>
+      <div
+        class="actions"
+        role="group"
+        [attr.aria-label]="'Status for inquiry from ' + inquiry.name"
+      >
+        @if (inquiry.status !== 'read') {
+          <button
+            nz-button
+            type="button"
+            [disabled]="loading() || !!busyId()"
+            (click)="update(inquiry, 'read')"
+          >
+            <span>Mark as read</span>
+          </button>
+        }
+        @if (inquiry.status !== 'unread') {
+          <button
+            nz-button
+            type="button"
+            [disabled]="loading() || !!busyId()"
+            (click)="update(inquiry, 'unread')"
+          >
+            <span>Mark as unread</span>
+          </button>
+        }
+        @if (inquiry.status !== 'archived') {
+          <button
+            nz-button
+            type="button"
+            [disabled]="loading() || !!busyId()"
+            (click)="update(inquiry, 'archived')"
+          >
+            <span>Archive</span>
+          </button>
+        }
+      </div>
+      @if (busyId() === inquiry.id) {
+        <p role="status">Updating inquiry…</p>
+      }
+    </article>
+  }
+</section>
+@if (loading()) {
+  <p role="status">Loading inquiries…</p>
+} @else if (listError()) {
+  <app-ui-state
+    kind="error"
+    heading="We could not load your inquiries"
+    [description]="listError()"
+    retryLabel="Retry inquiries"
+    (retry)="load(items().length === 0)"
+  />
+} @else if (items().length === 0) {
+  <app-ui-state
+    kind="empty"
+    heading="No inquiries yet"
+    description="Messages from visitors will appear here when they contact you about a listing."
+  />
+}
+@if (nextCursor() && !listError()) {
+  <button nz-button type="button" [disabled]="loading() || !!busyId()" (click)="load()">
+    <span>Load more inquiries</span>
+  </button>
+}

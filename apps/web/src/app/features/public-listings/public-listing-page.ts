@@ -5,10 +5,11 @@ import type { PublicListingResult } from '../../core/public-listing-resolver';
 import { AreaPipe } from '../../shared/area-pipe';
 import { PricePipe } from '../../shared/price-pipe';
 import { UiState } from '../../shared/ui-state/ui-state';
+import { InquiryForm } from './inquiry-form';
 
 @Component({
   selector: 'app-public-listing-page',
-  imports: [RouterLink, AreaPipe, PricePipe, UiState],
+  imports: [RouterLink, AreaPipe, PricePipe, UiState, InquiryForm],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './public-listing-page.html',
   styleUrl: './public-listing-page.scss'

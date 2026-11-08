@@ -305,3 +305,33 @@ export interface ListingSitemapResponse {
   items: { id: string; slug: string; publishedAt: string }[];
   nextCursor: string | null;
 }
+
+export interface CreateInquiryRequest {
+  name: string;
+  email: string;
+  phone?: string;
+  message: string;
+  website?: string;
+}
+export interface InquiryReceipt {
+  id: string;
+}
+export type InquiryStatus = 'unread' | 'read' | 'archived';
+export interface OwnerInquiry {
+  id: string;
+  listingId: string;
+  listingTitle: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  message: string;
+  status: InquiryStatus;
+  createdAt: string;
+}
+export interface OwnerInquiriesResponse {
+  items: OwnerInquiry[];
+  nextCursor: string | null;
+}
+export interface UpdateInquiryRequest {
+  status: InquiryStatus;
+}

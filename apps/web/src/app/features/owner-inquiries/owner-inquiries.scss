@@ -1,0 +1,86 @@
+@use '../../../styles/variables' as t;
+
+:host {
+  display: block;
+  max-width: 1000px;
+}
+h1 {
+  margin: 12px 0;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+}
+h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  overflow-wrap: anywhere;
+}
+.muted,
+dt {
+  color: t.$muted;
+}
+.inquiry-card {
+  margin-block: 24px;
+  padding: clamp(16px, 3vw, 28px);
+  border: 1px solid t.$border;
+  border-radius: t.$radius;
+  background: t.$surface;
+}
+.unread {
+  border-left: 4px solid t.$brand;
+}
+.inquiry-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.status {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: t.$brand-soft;
+  color: t.$brand;
+  font-weight: 600;
+}
+dl {
+  display: grid;
+  gap: 12px;
+}
+dl div {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr);
+  gap: 12px;
+}
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+button[nz-button] {
+  min-height: 44px;
+  height: auto;
+  white-space: normal;
+}
+.notice {
+  padding: 16px;
+  border-radius: 6px;
+  background: t.$brand-soft;
+}
+.error-message {
+  color: t.$danger;
+  border-left: 3px solid t.$danger;
+  padding-left: 12px;
+}
+@media (max-width: t.$mobile) {
+  .inquiry-heading {
+    flex-direction: column;
+  }
+}

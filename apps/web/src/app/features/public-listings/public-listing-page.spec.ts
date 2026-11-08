@@ -4,6 +4,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import type { PublicListingDetail } from '@viedom/contracts';
 import { PublicListingPage } from './public-listing-page';
 import type { PublicListingResult } from '../../core/public-listing-resolver';
+import { InquiriesClient } from '../inquiries-client';
 
 const variant = {
   url: '/photo.webp',
@@ -56,6 +57,7 @@ describe('public listing details', () => {
     response = { listing: home, unavailable: false };
     TestBed.configureTestingModule({
       providers: [
+        { provide: InquiriesClient, useValue: { create: vi.fn() } },
         provideRouter([
           {
             path: 'listings/:id/:slug',
@@ -98,7 +100,7 @@ describe('public listing details', () => {
     expect(page.brokenPhotos().size).toBe(0);
   });
 
-  it('escapes descriptions and renders only approximate area links and a truthful inquiry entry', async () => {
+  it('escapes descriptions and renders approximate area links and a private inquiry form', async () => {
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/listings/first/sunny-home', PublicListingPage);
     const element = harness.routeNativeElement!;
@@ -111,8 +113,8 @@ describe('public listing details', () => {
       '/search?west=22.93000&east=22.95000&south=40.63000&north=40.65000'
     );
     expect(element.querySelector('.contact-panel a')?.getAttribute('href')).toContain('#inquiry');
-    expect(element.textContent).toContain('Online inquiries are not available yet');
-    expect(element.querySelector('form')).toBeNull();
+    expect(element.textContent).toContain('shared privately');
+    expect(element.querySelector('form')).not.toBeNull();
   });
 
   it('clears old listing content on missing routes and retries transient errors', async () => {

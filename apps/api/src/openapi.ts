@@ -159,12 +159,54 @@ export const openApiDocument = {
   openapi: '3.1.0',
   info: {
     title: 'Viedom property, listing, administrative review and public search API',
-    version: '0.15.0',
+    version: '0.16.0',
     description:
       'Bearer authentication only; cookies do not authorize owner operations. PATCH replaces all editable content. Stale mutations conflict; clients must reload after 409. Original uploads are private. Processed images require owner authorization or current publication eligibility.'
   },
   servers: [{ url: '/api' }],
   paths: {
+    '/listings/{id}/inquiries': {
+      parameters: [parameter],
+      post: {
+        ...operation(
+          'submitListingInquiry',
+          'InquiryReceipt',
+          'CreateInquiry',
+          true,
+          'Guest or optional bearer inquiry. Requires exact web Origin and X-Inquiry-Request: 1. Server checks current public eligibility and derives publisher. Contact email is unverified. Persistent IP/contact/listing and duplicate limits apply; no-store.'
+        ),
+        security: [{}, { bearerAuth: [] }],
+        parameters: [
+          { name: 'X-Inquiry-Request', in: 'header', required: true, schema: { const: '1' } }
+        ],
+        responses: {
+          ...operation('submitListingInquiry', 'InquiryReceipt', 'CreateInquiry', true).responses,
+          '429': {
+            description: 'Abuse limit reached. Retry-After supplies seconds.',
+            content: json(ref('ApiError'))
+          }
+        }
+      }
+    },
+    '/me/inquiries': {
+      get: {
+        ...operation('listOwnInquiries', 'OwnerInquiries'),
+        parameters: [
+          { name: 'limit', in: 'query', schema: { ...integer(1, 50), default: 20 } },
+          { name: 'cursor', in: 'query', schema: string(256, 1) }
+        ]
+      }
+    },
+    '/me/inquiries/{id}': {
+      parameters: [parameter],
+      patch: operation(
+        'updateOwnInquiry',
+        'OwnerInquiry',
+        'UpdateInquiry',
+        false,
+        'Requires exact web Origin and bearer authentication. Updates status for this publisher only; cross-publisher IDs return 404. Contact email is unverified. No-store.'
+      )
+    },
     '/listings/search': {
       get: {
         ...searchOperation(
@@ -461,6 +503,33 @@ export const openApiDocument = {
   components: {
     securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
     schemas: {
+      CreateInquiry: object(
+        {
+          name: string(100, 1),
+          email: { ...string(254, 3), format: 'email' },
+          phone: { ...string(32, 1), pattern: '^[+()0-9 .-]+$' },
+          message: string(4000, 10),
+          website: { const: '' }
+        },
+        ['name', 'email', 'message']
+      ),
+      InquiryReceipt: object({ id }),
+      UpdateInquiry: object({ status: { enum: ['unread', 'read', 'archived'] } }),
+      OwnerInquiry: object({
+        id,
+        listingId: id,
+        listingTitle: string(160),
+        name: string(100, 1),
+        email: { ...string(254, 3), format: 'email' },
+        phone: nullable(string(32, 1)),
+        message: string(4000, 10),
+        status: { enum: ['unread', 'read', 'archived'] },
+        createdAt: date
+      }),
+      OwnerInquiries: object({
+        items: { type: 'array', maxItems: 50, items: ref('OwnerInquiry') },
+        nextCursor: nullable(string(256, 1))
+      }),
       PublicListingMarker: object(publicMarker),
       PublicListingCard: object({
         ...publicMarker,

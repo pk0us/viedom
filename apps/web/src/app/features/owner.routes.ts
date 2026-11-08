@@ -9,6 +9,11 @@ export const ownerRoutes: Routes = [
     loadComponent: () => import('./owner-overview/owner-overview').then((m) => m.OwnerOverview)
   },
   {
+    path: 'inquiries',
+    title: 'Inquiries · Viedom',
+    loadComponent: () => import('./owner-inquiries/owner-inquiries').then((m) => m.OwnerInquiries)
+  },
+  {
     path: 'listings/new',
     title: 'New listing · Viedom',
     canDeactivate: [unsavedListingGuard],

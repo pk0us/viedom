@@ -10,7 +10,8 @@ export default defineConfig({
       'test/auth.spec.ts',
       'test/listings.spec.ts',
       'test/admin.spec.ts',
-      'test/search.spec.ts'
+      'test/search.spec.ts',
+      'test/inquiries.spec.ts'
     ],
     fileParallelism: false,
     testTimeout: 15_000,

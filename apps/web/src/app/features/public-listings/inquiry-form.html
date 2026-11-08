@@ -1,0 +1,114 @@
+@if (sent()) {
+  <p class="notice" role="status">
+    Your inquiry was sent. The publisher can contact you using the details you provided.
+  </p>
+} @else {
+  <p class="privacy-note" id="inquiry-privacy">
+    Your contact details and message are shared privately with this home's publisher. You do not
+    need an account to send an inquiry.
+  </p>
+  <form [formGroup]="form" (ngSubmit)="save()" aria-describedby="inquiry-privacy" novalidate>
+    <fieldset [disabled]="busy()" [attr.aria-busy]="busy()">
+      <legend class="visually-hidden">Contact the publisher</legend>
+      <div class="form-field">
+        <label for="inquiry-name">Your name (required)</label>
+        <input
+          nz-input
+          id="inquiry-name"
+          formControlName="name"
+          autocomplete="name"
+          maxlength="100"
+          required
+          [attr.aria-invalid]="invalid('name') ? 'true' : null"
+          aria-describedby="inquiry-name-feedback"
+        />
+        <p id="inquiry-name-feedback" class="field-error">
+          @if (invalid('name')) {
+            Enter your name using at most 100 characters.
+          }
+        </p>
+      </div>
+      <div class="form-field">
+        <label for="inquiry-email">Email (required)</label>
+        <input
+          nz-input
+          id="inquiry-email"
+          type="email"
+          formControlName="email"
+          autocomplete="email"
+          autocapitalize="none"
+          spellcheck="false"
+          maxlength="254"
+          required
+          [attr.aria-invalid]="invalid('email') ? 'true' : null"
+          aria-describedby="inquiry-email-feedback"
+        />
+        <p id="inquiry-email-feedback" class="field-error">
+          @if (invalid('email')) {
+            Enter a valid email address using at most 254 characters.
+          }
+        </p>
+      </div>
+      <div class="form-field">
+        <label for="inquiry-phone">Phone (optional)</label>
+        <input
+          nz-input
+          id="inquiry-phone"
+          type="tel"
+          formControlName="phone"
+          autocomplete="tel"
+          maxlength="32"
+          [attr.aria-invalid]="invalid('phone') ? 'true' : null"
+          aria-describedby="inquiry-phone-feedback"
+        />
+        <p id="inquiry-phone-feedback" [class.field-error]="invalid('phone')">
+          @if (invalid('phone')) {
+            Use at most 32 characters: digits, spaces, +, parentheses, periods or hyphens.
+          } @else {
+            Digits, spaces, +, parentheses, periods or hyphens.
+          }
+        </p>
+      </div>
+      <div class="form-field">
+        <label for="inquiry-message">Message (required)</label>
+        <textarea
+          nz-input
+          id="inquiry-message"
+          formControlName="message"
+          rows="5"
+          minlength="10"
+          maxlength="4000"
+          required
+          [attr.aria-invalid]="invalid('message') ? 'true' : null"
+          aria-describedby="inquiry-message-feedback"
+        ></textarea>
+        <p id="inquiry-message-feedback" [class.field-error]="invalid('message')">
+          @if (invalid('message')) {
+            Enter a message between 10 and 4,000 characters.
+          } @else {
+            10–4,000 characters.
+          }
+        </p>
+      </div>
+      <div class="honeypot" aria-hidden="true">
+        <label for="inquiry-website">Website</label>
+        <input
+          id="inquiry-website"
+          name="website"
+          formControlName="website"
+          tabindex="-1"
+          autocomplete="off"
+        />
+      </div>
+      <button nz-button nzType="primary" type="submit" [disabled]="busy()" [nzLoading]="busy()">
+        <span>{{ busy() ? 'Sending inquiry…' : 'Send inquiry' }}</span>
+      </button>
+    </fieldset>
+  </form>
+}
+@if (busy()) {
+  <p role="status">Sending your inquiry…</p>
+}
+@if (error()) {
+  <p class="error-message" role="alert">{{ error() }}</p>
+}

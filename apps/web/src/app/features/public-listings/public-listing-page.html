@@ -122,14 +122,11 @@
       <aside class="contact-panel" aria-labelledby="contact-heading">
         <p class="eyebrow">Your next chapter</p>
         <h2 id="contact-heading">Interested in this home?</h2>
-        <p>Find out about contacting the owner.</p>
+        <p>Ask the publisher about availability or arrange a viewing.</p>
         <a class="action primary" [routerLink]="[]" fragment="inquiry">Contact options</a>
         <section id="inquiry" tabindex="-1" aria-labelledby="inquiry-heading">
-          <h3 id="inquiry-heading">Owner inquiries are coming soon</h3>
-          <p>
-            Online inquiries are not available yet. No contact details or messages can be submitted
-            here.
-          </p>
+          <h3 id="inquiry-heading">Send an inquiry</h3>
+          <app-inquiry-form [listingId]="home.id" />
         </section>
       </aside>
     </div>
